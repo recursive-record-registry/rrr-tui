@@ -1,12 +1,13 @@
 use color_eyre::eyre::Result;
 use ratatui::prelude::*;
 use ratatui::widgets::canvas::Label;
-use ratatui::widgets::{Block, Borders, Row, Table};
+use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table};
 use ratatui::Frame;
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::config::PROJECT_VERSION;
 
+use super::input_field::InputField;
 use super::Component;
 
 #[derive(Clone)]
@@ -64,15 +65,26 @@ impl Widget for LineSpacer {
     }
 }
 
-pub struct MainView {}
+pub struct MainView {
+    record_name_field: InputField,
+}
 
 impl MainView {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            record_name_field: Default::default(),
+        }
     }
 }
 
 impl Component for MainView {
+    fn handle_events(
+        &mut self,
+        event: Option<crate::tui::Event>,
+    ) -> Result<Option<crate::action::Action>> {
+        self.record_name_field.handle_events(event.clone())
+    }
+
     fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()> {
         let spacer_horizontal = LineSpacer {
             direction: Direction::Horizontal,
@@ -153,13 +165,24 @@ impl Component for MainView {
             area_header,
         );
         frame.render_widget(Text::raw("Lorem ipsum dolor sit amet…"), area_content);
-        let bottom_table = Table::default()
-            .widths([Constraint::Length(11), Constraint::Fill(1)])
-            .rows([
-                Row::new(["Record Name", "Top Right"]),
-                Row::new(["Bottom Left", "Bottom Right"]),
-            ]);
-        frame.render_widget(bottom_table, area_bottom);
+        let layout_bottom_lines = Layout::default()
+            .direction(Direction::Horizontal)
+            .spacing(1)
+            .constraints([Constraint::Length(11), Constraint::Fill(1)]);
+        let [area_record_name, area_encoding] = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(1), Constraint::Length(1)])
+            .areas(area_bottom);
+        let [area_record_name_label, area_record_name_field] =
+            layout_bottom_lines.areas(area_record_name);
+        let [area_encoding_label, area_encoding_field] = layout_bottom_lines.areas(area_encoding);
+
+        frame.render_widget(Span::raw("Record Name"), area_record_name_label);
+        self.record_name_field
+            .draw(frame, area_record_name_field)
+            .unwrap();
+        frame.render_widget(Span::raw("Encoding"), area_encoding_label);
+        frame.render_widget(Span::raw("Field"), area_encoding_field);
 
         Ok(())
     }
