@@ -1,21 +1,15 @@
-use std::{
-    fmt::Write,
-    ops::{Index, Range, RangeInclusive},
-    time::Instant,
-};
+use std::ops::Range;
 
 use color_eyre::Result;
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::{
-    layout::{Constraint, Layout, Rect},
+    layout::Rect,
     style::{Color, Style, Stylize},
     text::{Line, Span},
-    widgets::{Paragraph, StatefulWidget},
     Frame,
 };
-use tracing::debug;
 
-use super::Component;
+use super::{Component, ComponentId};
 
 use crate::{action::Action, tui::Event};
 
@@ -76,19 +70,21 @@ impl TryFrom<KeyCode> for CursorMoveDirection {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct InputField {
+    id: ComponentId,
     cursor: Cursor,
     content: String,
 }
 
-impl Default for InputField {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl InputField {
-    pub fn new() -> Self {
+    pub fn new(
+        id: ComponentId,
+        tx: tokio::sync::mpsc::UnboundedSender<crate::action::Action>,
+    ) -> Self
+    where
+        Self: Sized,
+    {
         Self {
+            id,
             cursor: Cursor::default(),
             content: String::new(),
         }
@@ -175,19 +171,10 @@ impl InputField {
 
 impl Component for InputField {
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
-        // match action {
-        //     Action::Tick => self.app_tick()?,
-        //     Action::Render => self.render_tick()?,
-        //     _ => {}
-        // };
         Ok(None)
     }
 
-    fn handle_events(&mut self, event: Option<Event>) -> Result<Option<Action>> {
-        let Some(event) = event else {
-            return Ok(None);
-        };
-
+    fn handle_event(&mut self, event: Event) -> Result<Option<Action>> {
         Ok(match event {
             Event::Key(KeyEvent {
                 code: KeyCode::Char(character),
@@ -260,7 +247,7 @@ impl Component for InputField {
         })
     }
 
-    fn draw(&mut self, frame: &mut Frame, mut area: Rect) -> Result<()> {
+    fn draw(&self, frame: &mut Frame, mut area: Rect) -> Result<()> {
         if area.area() == 0 {
             return Ok(());
         }
@@ -296,5 +283,13 @@ impl Component for InputField {
         }
 
         Ok(())
+    }
+
+    fn get_id(&self) -> ComponentId {
+        self.id
+    }
+
+    fn get_accessibility_node(&self) -> Result<accesskit::Node> {
+        todo!()
     }
 }

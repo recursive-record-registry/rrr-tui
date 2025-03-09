@@ -3,6 +3,12 @@
 version = 4
 
 [[package]]
+name = "accesskit"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "becf0eb5215b6ecb0a739c31c21bd83c4f326524c9b46b7e882d77559b60a529"
+
+[[package]]
 name = "addr2line"
 version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2114,6 +2120,7 @@ dependencies = [
 name = "rrr-tui-3"
 version = "0.1.0"
 dependencies = [
+ "accesskit",
  "anyhow",
  "better-panic",
  "clap",

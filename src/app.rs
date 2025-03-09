@@ -1,34 +1,28 @@
+use std::ops::ControlFlow;
+
 use color_eyre::Result;
-use crossterm::event::KeyEvent;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::prelude::Rect;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tracing::{debug, info};
 
 use crate::{
-    action::Action,
-    components::{fps::FpsCounter, home::Home, main_view::MainView, Component},
-    config::Config,
+    action::{Action, FocusChange, FocusChangeDirection, FocusChangeScope},
+    components::{self, main_view::MainView, Component, ComponentId, ComponentIdPath},
     tui::{Event, Tui},
 };
 
 pub struct App {
-    config: Config,
     tick_rate: f64,
     frame_rate: f64,
-    components: Vec<Box<dyn Component>>,
     should_quit: bool,
     should_suspend: bool,
-    mode: Mode,
     last_tick_key_events: Vec<KeyEvent>,
     action_tx: mpsc::UnboundedSender<Action>,
     action_rx: mpsc::UnboundedReceiver<Action>,
-}
-
-#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum Mode {
-    #[default]
-    Home,
+    root_component: Box<dyn Component>,
+    focus_path: ComponentIdPath,
 }
 
 impl App {
@@ -37,13 +31,11 @@ impl App {
         Ok(Self {
             tick_rate,
             frame_rate,
-            // components: vec![Box::new(Home::new()), Box::new(FpsCounter::default())],
-            components: vec![Box::new(MainView::new())],
             should_quit: false,
             should_suspend: false,
-            config: Config::new()?,
-            mode: Mode::Home,
             last_tick_key_events: Vec::new(),
+            root_component: Box::new(MainView::new(ComponentId::root(), action_tx.clone())),
+            focus_path: Default::default(),
             action_tx,
             action_rx,
         })
@@ -55,16 +47,6 @@ impl App {
             .tick_rate(self.tick_rate)
             .frame_rate(self.frame_rate);
         tui.enter()?;
-
-        for component in self.components.iter_mut() {
-            component.register_action_handler(self.action_tx.clone())?;
-        }
-        for component in self.components.iter_mut() {
-            component.register_config_handler(self.config.clone())?;
-        }
-        for component in self.components.iter_mut() {
-            component.init(tui.size()?)?;
-        }
 
         let action_tx = self.action_tx.clone();
         loop {
@@ -98,35 +80,64 @@ impl App {
             Event::Key(key) => self.handle_key_event(key)?,
             _ => {}
         }
-        for component in self.components.iter_mut() {
-            if let Some(action) = component.handle_events(Some(event.clone()))? {
-                action_tx.send(action)?;
-            }
-        }
+        components::depth_first_search_mut(
+            &mut *self.root_component,
+            &mut |component| {
+                if let Some(action) = component.handle_event(event.clone()).unwrap() {
+                    action_tx.send(action).unwrap();
+                }
+
+                ControlFlow::Continue(())
+            },
+            &mut |_| ControlFlow::Continue(()),
+        );
+        // for component in self.components.iter_mut() {
+        //     if let Some(action) = component.handle_event(event.clone())? {
+        //         action_tx.send(action)?;
+        //     }
+        // }
         Ok(())
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<()> {
-        let action_tx = self.action_tx.clone();
-        let Some(keymap) = self.config.keybindings.get(&self.mode) else {
-            return Ok(());
+        let action = match key {
+            KeyEvent {
+                code: KeyCode::Char('c' | 'd'),
+                modifiers: KeyModifiers::CONTROL,
+                ..
+            } => Some(Action::Quit),
+            KeyEvent {
+                code: KeyCode::Tab,
+                modifiers: modifiers @ (KeyModifiers::NONE | KeyModifiers::SHIFT),
+                ..
+            } => Some(Action::FocusChange(FocusChange {
+                direction: if modifiers == KeyModifiers::NONE {
+                    FocusChangeDirection::Forward
+                } else {
+                    FocusChangeDirection::Backward
+                },
+                scope: FocusChangeScope::HorizontalAndVertical,
+            })),
+            KeyEvent {
+                code: code @ (KeyCode::Up | KeyCode::Down | KeyCode::Left | KeyCode::Right),
+                modifiers: KeyModifiers::ALT,
+                ..
+            } => Some(Action::FocusChange(FocusChange {
+                direction: if code == KeyCode::Down || code == KeyCode::Right {
+                    FocusChangeDirection::Forward
+                } else {
+                    FocusChangeDirection::Backward
+                },
+                scope: if code == KeyCode::Up || code == KeyCode::Down {
+                    FocusChangeScope::Vertical
+                } else {
+                    FocusChangeScope::Horizontal
+                },
+            })),
+            _ => None,
         };
-        match keymap.get(&vec![key]) {
-            Some(action) => {
-                info!("Got action: {action:?}");
-                action_tx.send(action.clone())?;
-            }
-            _ => {
-                // If the key was not handled as a single key action,
-                // then consider it for multi-key combinations.
-                self.last_tick_key_events.push(key);
-
-                // Check for multi-key combinations
-                if let Some(action) = keymap.get(&self.last_tick_key_events) {
-                    info!("Got action: {action:?}");
-                    action_tx.send(action.clone())?;
-                }
-            }
+        if let Some(action) = action {
+            self.action_tx.send(action)?;
         }
         Ok(())
     }
@@ -148,11 +159,17 @@ impl App {
                 Action::Render => self.render(tui)?,
                 _ => {}
             }
-            for component in self.components.iter_mut() {
-                if let Some(action) = component.update(action.clone())? {
-                    self.action_tx.send(action)?
-                };
-            }
+            components::depth_first_search_mut(
+                &mut *self.root_component,
+                &mut |component| {
+                    if let Some(action) = component.update(action.clone()).unwrap() {
+                        self.action_tx.send(action).unwrap()
+                    }
+
+                    ControlFlow::Continue(())
+                },
+                &mut |_| ControlFlow::Continue(()),
+            );
         }
         Ok(())
     }
@@ -164,15 +181,10 @@ impl App {
     }
 
     fn render(&mut self, tui: &mut Tui) -> Result<()> {
+        let mut result = Ok(());
         tui.draw(|frame| {
-            for component in self.components.iter_mut() {
-                if let Err(err) = component.draw(frame, frame.area()) {
-                    let _ = self
-                        .action_tx
-                        .send(Action::Error(format!("Failed to draw: {:?}", err)));
-                }
-            }
+            result = self.root_component.draw(frame, frame.area());
         })?;
-        Ok(())
+        result
     }
 }

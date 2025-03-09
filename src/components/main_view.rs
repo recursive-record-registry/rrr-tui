@@ -1,3 +1,4 @@
+use accesskit::TreeUpdate;
 use color_eyre::eyre::Result;
 use ratatui::prelude::*;
 use ratatui::widgets::canvas::Label;
@@ -8,7 +9,7 @@ use tracing::{debug, info};
 use crate::config::PROJECT_VERSION;
 
 use super::input_field::InputField;
-use super::Component;
+use super::{Component, ComponentId};
 
 #[derive(Clone)]
 pub struct LineSpacer {
@@ -66,26 +67,35 @@ impl Widget for LineSpacer {
 }
 
 pub struct MainView {
+    id: ComponentId,
     record_name_field: InputField,
 }
 
 impl MainView {
-    pub fn new() -> Self {
+    pub fn new(
+        id: ComponentId,
+        tx: tokio::sync::mpsc::UnboundedSender<crate::action::Action>,
+    ) -> Self
+    where
+        Self: Sized,
+    {
         Self {
-            record_name_field: Default::default(),
+            id,
+            record_name_field: InputField::new(ComponentId::new(), tx.clone()),
         }
     }
 }
 
 impl Component for MainView {
-    fn handle_events(
-        &mut self,
-        event: Option<crate::tui::Event>,
-    ) -> Result<Option<crate::action::Action>> {
-        self.record_name_field.handle_events(event.clone())
+    fn update(&mut self, action: crate::action::Action) -> Result<Option<crate::action::Action>> {
+        Ok(None)
     }
 
-    fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()> {
+    fn handle_event(&mut self, event: crate::tui::Event) -> Result<Option<crate::action::Action>> {
+        Ok(None)
+    }
+
+    fn draw(&self, frame: &mut Frame, area: Rect) -> Result<()> {
         let spacer_horizontal = LineSpacer {
             direction: Direction::Horizontal,
             begin: symbols::line::HORIZONTAL,
@@ -185,5 +195,23 @@ impl Component for MainView {
         frame.render_widget(Span::raw("Field"), area_encoding_field);
 
         Ok(())
+    }
+
+    fn get_id(&self) -> super::ComponentId {
+        self.id
+    }
+
+    fn get_children(&self) -> Vec<&dyn Component> {
+        vec![&self.record_name_field]
+    }
+
+    fn get_children_mut(&mut self) -> Vec<&mut dyn Component> {
+        vec![&mut self.record_name_field]
+    }
+
+    fn get_accessibility_node(&self) -> Result<accesskit::Node> {
+        let mut node = accesskit::Node::new(accesskit::Role::Group);
+        node.set_children(vec![]);
+        Ok(node)
     }
 }

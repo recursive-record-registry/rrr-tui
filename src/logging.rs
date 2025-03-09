@@ -12,8 +12,8 @@ lazy_static::lazy_static! {
 
 /// Enable logging if the `LOG_FILE` environment variable is specified.
 pub fn init() -> Result<()> {
-    let directory = config::get_data_dir();
-    std::fs::create_dir_all(directory.clone())?;
+    // let directory = config::get_data_dir();
+    // std::fs::create_dir_all(directory.clone())?;
     let log_path = match std::env::var("LOG_FILE") {
         Ok(log_file) => log_file,
         Err(VarError::NotPresent) => return Ok(()),

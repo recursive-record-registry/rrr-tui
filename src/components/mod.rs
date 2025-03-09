@@ -1,3 +1,5 @@
+use std::{ops::ControlFlow, sync::atomic::AtomicU64};
+
 use color_eyre::Result;
 use crossterm::event::{KeyEvent, MouseEvent};
 use ratatui::{
@@ -6,122 +8,141 @@ use ratatui::{
 };
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::{action::Action, config::Config, tui::Event};
+use crate::{action::Action, tui::Event};
 
-pub mod fps;
-pub mod home;
+// pub mod fps;
+// pub mod home;
 pub mod input_field;
 pub mod main_view;
+
+mod id {
+    use std::{
+        ops::ControlFlow,
+        sync::atomic::{AtomicU64, Ordering},
+    };
+
+    use derive_deref::{Deref, DerefMut};
+
+    static ID_COUNTER: AtomicU64 = AtomicU64::new(1);
+
+    #[derive(PartialEq, Eq, Clone, Copy, Debug, Hash)]
+    pub struct ComponentId(u64);
+
+    impl ComponentId {
+        pub fn root() -> Self {
+            Self(0)
+        }
+
+        pub fn new() -> Self {
+            Self(ID_COUNTER.fetch_add(1, Ordering::SeqCst))
+        }
+    }
+
+    impl From<ComponentId> for accesskit::NodeId {
+        fn from(value: ComponentId) -> Self {
+            accesskit::NodeId(value.0)
+        }
+    }
+
+    /// Contains the path to the focused node, excluding the root node's ID.
+    #[derive(Default, Deref, DerefMut)]
+    pub struct ComponentIdPath(pub Vec<ComponentId>);
+
+    impl ComponentIdPath {
+        pub fn find_deepest_available_component(&self, root: &dyn super::Component) -> ComponentId {
+            let mut deepest_available_component_id = ComponentId::root();
+            let mut component = root;
+
+            for id in &self.0 {
+                let found = component
+                    .for_each_child(&mut |child| {
+                        if child.get_id() == *id {
+                            component = child;
+                            ControlFlow::Break(())
+                        } else {
+                            ControlFlow::Continue(())
+                        }
+                    })
+                    .is_break();
+
+                if found {
+                    deepest_available_component_id = *id;
+                } else {
+                    break;
+                }
+            }
+
+            deepest_available_component_id
+        }
+    }
+}
+
+pub use id::ComponentId;
+pub use id::ComponentIdPath;
 
 /// `Component` is a trait that represents a visual and interactive element of the user interface.
 ///
 /// Implementors of this trait can be registered with the main application loop and will be able to
 /// receive events, update state, and be rendered on the screen.
 pub trait Component {
-    /// Register an action handler that can send actions for processing if necessary.
-    ///
-    /// # Arguments
-    ///
-    /// * `tx` - An unbounded sender that can send actions.
-    ///
-    /// # Returns
-    ///
-    /// * `Result<()>` - An Ok result or an error.
-    fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
-        let _ = tx; // to appease clippy
-        Ok(())
+    fn handle_event(&mut self, event: Event) -> Result<Option<Action>>;
+    fn update(&mut self, action: Action) -> Result<Option<Action>>;
+    fn draw(&self, frame: &mut Frame, area: Rect) -> Result<()>;
+    fn get_id(&self) -> ComponentId;
+    fn get_accessibility_node(&self) -> Result<accesskit::Node>;
+
+    fn get_children(&self) -> Vec<&dyn Component> {
+        Default::default()
     }
-    /// Register a configuration handler that provides configuration settings if necessary.
-    ///
-    /// # Arguments
-    ///
-    /// * `config` - Configuration settings.
-    ///
-    /// # Returns
-    ///
-    /// * `Result<()>` - An Ok result or an error.
-    fn register_config_handler(&mut self, config: Config) -> Result<()> {
-        let _ = config; // to appease clippy
-        Ok(())
+
+    fn get_children_mut(&mut self) -> Vec<&mut dyn Component> {
+        Default::default()
     }
-    /// Initialize the component with a specified area if necessary.
-    ///
-    /// # Arguments
-    ///
-    /// * `area` - Rectangular area to initialize the component within.
-    ///
-    /// # Returns
-    ///
-    /// * `Result<()>` - An Ok result or an error.
-    fn init(&mut self, area: Size) -> Result<()> {
-        let _ = area; // to appease clippy
-        Ok(())
+
+    fn for_each_child<'a>(
+        &'a self,
+        f: &mut dyn FnMut(&'a dyn Component) -> ControlFlow<()>,
+    ) -> ControlFlow<()> {
+        for child in self.get_children() {
+            (f)(child)?;
+        }
+
+        ControlFlow::Continue(())
     }
-    /// Handle incoming events and produce actions if necessary.
-    ///
-    /// # Arguments
-    ///
-    /// * `event` - An optional event to be processed.
-    ///
-    /// # Returns
-    ///
-    /// * `Result<Option<Action>>` - An action to be processed or none.
-    fn handle_events(&mut self, event: Option<Event>) -> Result<Option<Action>> {
-        let action = match event {
-            Some(Event::Key(key_event)) => self.handle_key_event(key_event)?,
-            Some(Event::Mouse(mouse_event)) => self.handle_mouse_event(mouse_event)?,
-            _ => None,
-        };
-        Ok(action)
+
+    fn for_each_child_mut<'a>(
+        &'a mut self,
+        f: &mut dyn FnMut(&'a mut dyn Component) -> ControlFlow<()>,
+    ) -> ControlFlow<()> {
+        for child in self.get_children_mut() {
+            (f)(child)?;
+        }
+
+        ControlFlow::Continue(())
     }
-    /// Handle key events and produce actions if necessary.
-    ///
-    /// # Arguments
-    ///
-    /// * `key` - A key event to be processed.
-    ///
-    /// # Returns
-    ///
-    /// * `Result<Option<Action>>` - An action to be processed or none.
-    fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
-        let _ = key; // to appease clippy
-        Ok(None)
-    }
-    /// Handle mouse events and produce actions if necessary.
-    ///
-    /// # Arguments
-    ///
-    /// * `mouse` - A mouse event to be processed.
-    ///
-    /// # Returns
-    ///
-    /// * `Result<Option<Action>>` - An action to be processed or none.
-    fn handle_mouse_event(&mut self, mouse: MouseEvent) -> Result<Option<Action>> {
-        let _ = mouse; // to appease clippy
-        Ok(None)
-    }
-    /// Update the state of the component based on a received action. (REQUIRED)
-    ///
-    /// # Arguments
-    ///
-    /// * `action` - An action that may modify the state of the component.
-    ///
-    /// # Returns
-    ///
-    /// * `Result<Option<Action>>` - An action to be processed or none.
-    fn update(&mut self, action: Action) -> Result<Option<Action>> {
-        let _ = action; // to appease clippy
-        Ok(None)
-    }
-    /// Render the component on the screen. (REQUIRED)
-    ///
-    /// # Arguments
-    ///
-    /// * `f` - A frame used for rendering.
-    /// * `area` - The area in which the component should be drawn.
-    ///
-    /// # Returns
-    ///
-    /// * `Result<()>` - An Ok result or an error.
-    fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()>;
+}
+
+pub fn depth_first_search(
+    subtree_root: &dyn Component,
+    visit_preorder: &mut dyn FnMut(&dyn Component) -> ControlFlow<()>,
+    visit_postorder: &mut dyn FnMut(&dyn Component) -> ControlFlow<()>,
+) -> ControlFlow<()> {
+    (visit_preorder)(subtree_root)?;
+    subtree_root
+        .for_each_child(&mut |child| depth_first_search(child, visit_preorder, visit_postorder))?;
+    (visit_postorder)(subtree_root)?;
+    ControlFlow::Continue(())
+}
+
+pub fn depth_first_search_mut(
+    subtree_root: &mut dyn Component,
+    visit_preorder: &mut dyn FnMut(&mut dyn Component) -> ControlFlow<()>,
+    visit_postorder: &mut dyn FnMut(&mut dyn Component) -> ControlFlow<()>,
+) -> ControlFlow<()> {
+    (visit_preorder)(subtree_root)?;
+    subtree_root.for_each_child_mut(&mut |child| {
+        depth_first_search_mut(child, visit_preorder, visit_postorder)
+    })?;
+    (visit_postorder)(subtree_root)?;
+    ControlFlow::Continue(())
 }

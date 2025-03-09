@@ -26,6 +26,7 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 use tracing::error;
 
+/// Backend-generated events.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Event {
     Init,
