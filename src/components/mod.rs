@@ -133,7 +133,7 @@ pub trait Component: Debug {
 
     fn update(&mut self, message: ComponentMessage) -> Result<Option<Action>>;
 
-    fn draw(&self, frame: &mut Frame, area: Rect) -> Result<()>;
+    fn draw(&self, frame: &mut Frame, area: Rect, focused_id: ComponentId) -> Result<()>;
 
     /// Returns the immutable unique ID of this component's instance.
     fn get_id(&self) -> ComponentId;

@@ -250,43 +250,56 @@ impl Component for InputField {
                 self.insert(&paste_string);
                 Some(Action::Render)
             }
+            Event::FocusGained => {
+                self.cursor = Cursor {
+                    start: 0,
+                    end: self.content.len(),
+                };
+                Some(Action::Render)
+            }
             _ => None,
         })
     }
 
-    fn draw(&self, frame: &mut Frame, mut area: Rect) -> Result<()> {
+    fn draw(&self, frame: &mut Frame, mut area: Rect, focused_id: ComponentId) -> Result<()> {
         if area.area() == 0 {
             return Ok(());
         }
 
         area.height = 1;
 
-        let minmax = self.cursor.minmax();
+        let focused = focused_id == self.id;
 
-        if minmax.is_empty() {
-            let mut spans = vec![Span::styled(&self.content[..minmax.start], Style::new())];
-            if minmax.start < self.content.len() {
-                let mut chars = self.content[minmax.start..].chars();
-                let cursor_char = chars.next().into_iter().collect::<String>();
-                let remaining = chars.collect::<String>();
-                spans.extend([
-                    Span::styled(cursor_char, Style::new().reversed()),
-                    Span::styled(remaining, Style::new()),
-                ]);
+        if focused {
+            let minmax = self.cursor.minmax();
+
+            if minmax.is_empty() {
+                let mut spans = vec![Span::styled(&self.content[..minmax.start], Style::new())];
+                if minmax.start < self.content.len() {
+                    let mut chars = self.content[minmax.start..].chars();
+                    let cursor_char = chars.next().into_iter().collect::<String>();
+                    let remaining = chars.collect::<String>();
+                    spans.extend([
+                        Span::styled(cursor_char, Style::new().reversed()),
+                        Span::styled(remaining, Style::new()),
+                    ]);
+                } else {
+                    spans.push(Span::styled(" ", Style::new().reversed()));
+                }
+                frame.render_widget(Line::from(spans), area);
             } else {
-                spans.push(Span::styled(" ", Style::new().reversed()));
+                let spans = vec![
+                    Span::styled(&self.content[..minmax.start], Style::new()),
+                    Span::styled(
+                        &self.content[minmax.start..minmax.end],
+                        Style::new().white().bg(Color::Rgb(0x5F, 0x5F, 0x5F)),
+                    ),
+                    Span::styled(&self.content[minmax.end..], Style::new()),
+                ];
+                frame.render_widget(Line::from(spans), area);
             }
-            frame.render_widget(Line::from(spans), area);
         } else {
-            let spans = vec![
-                Span::styled(&self.content[..minmax.start], Style::new()),
-                Span::styled(
-                    &self.content[minmax.start..minmax.end],
-                    Style::new().white().bg(Color::Rgb(0x5F, 0x5F, 0x5F)),
-                ),
-                Span::styled(&self.content[minmax.end..], Style::new()),
-            ];
-            frame.render_widget(Line::from(spans), area);
+            frame.render_widget(Span::styled(&self.content, Style::new()), area);
         }
 
         Ok(())

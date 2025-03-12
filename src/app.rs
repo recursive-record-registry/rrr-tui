@@ -160,14 +160,17 @@ impl App {
     fn change_focus(&mut self, focus_change: FocusChange) -> Result<()> {
         match focus_change.scope {
             FocusChangeScope::HorizontalAndVertical => {
-                let mut focused_element_visited = false;
-                let mut first_focusable_element = None;
-                let mut last_focusable_element = None;
-                let mut previous_focusable_element = None;
-                let mut next_focusable_element = None;
-                let (_, deepest_available_path) = self
+                let mut focused_component_visited = false;
+                let mut first_focusable_component = None;
+                let mut last_focusable_component = None;
+                let mut previous_focusable_component = None;
+                let mut next_focusable_component = None;
+                let (originally_selected_component, deepest_available_path) = self
                     .focus_path
-                    .find_deepest_available_component(&*self.root_component);
+                    .find_deepest_available_component_mut(&mut *self.root_component);
+
+                originally_selected_component.handle_event(Event::FocusLost)?;
+
                 let deepest_available_id = deepest_available_path
                     .last()
                     .copied()
@@ -177,20 +180,20 @@ impl App {
                     &*self.root_component,
                     &mut |component| -> ControlFlow<()> {
                         if component.is_focusable() {
-                            if first_focusable_element.is_none() {
-                                first_focusable_element = Some(component);
+                            if first_focusable_component.is_none() {
+                                first_focusable_component = Some(component);
                             }
 
-                            if focused_element_visited && next_focusable_element.is_none() {
-                                next_focusable_element = Some(component);
+                            if focused_component_visited && next_focusable_component.is_none() {
+                                next_focusable_component = Some(component);
                             }
 
                             if component.get_id() == deepest_available_id {
-                                focused_element_visited = true;
-                                previous_focusable_element = last_focusable_element;
+                                focused_component_visited = true;
+                                previous_focusable_component = last_focusable_component;
                             }
 
-                            last_focusable_element = Some(component);
+                            last_focusable_component = Some(component);
                         }
 
                         ControlFlow::Continue(())
@@ -198,22 +201,27 @@ impl App {
                     &mut |_component| -> ControlFlow<()> { ControlFlow::Continue(()) },
                 );
 
-                next_focusable_element = next_focusable_element.or(first_focusable_element);
-                previous_focusable_element = previous_focusable_element.or(last_focusable_element);
+                next_focusable_component = next_focusable_component.or(first_focusable_component);
+                previous_focusable_component =
+                    previous_focusable_component.or(last_focusable_component);
 
                 if focus_change.direction == FocusChangeDirection::Backward {
-                    std::mem::swap(&mut next_focusable_element, &mut previous_focusable_element);
+                    std::mem::swap(
+                        &mut next_focusable_component,
+                        &mut previous_focusable_component,
+                    );
                 }
 
-                if let Some(next_focusable_element) = next_focusable_element {
-                    let next_focusable_element_id = next_focusable_element.get_id();
-                    let (_, focus_path) = find_component_by_id_mut(
+                if let Some(next_focusable_component) = next_focusable_component {
+                    let next_focusable_component_id = next_focusable_component.get_id();
+                    let (newly_selected_component, focus_path) = find_component_by_id_mut(
                         &mut *self.root_component,
-                        next_focusable_element_id,
+                        next_focusable_component_id,
                     )
                     .unwrap();
-                    tracing::debug!(?focus_path, "Focus changed.");
                     self.focus_path = focus_path;
+                    newly_selected_component.handle_event(Event::FocusGained)?;
+                    tracing::debug!(focus_path=?self.focus_path, "Focus changed.");
                 }
             }
             FocusChangeScope::Horizontal => unimplemented!(),
@@ -269,8 +277,17 @@ impl App {
     fn render(&mut self, tui: &mut Tui) -> Result<()> {
         let mut result = Ok(());
         tui.draw(|frame| {
-            result = self.root_component.draw(frame, frame.area());
+            result = self
+                .root_component
+                .draw(frame, frame.area(), self.get_focused_component_id());
         })?;
         result
+    }
+
+    fn get_focused_component_id(&self) -> ComponentId {
+        self.focus_path
+            .last()
+            .copied()
+            .unwrap_or_else(|| self.root_component.get_id())
     }
 }

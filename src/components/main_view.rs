@@ -104,7 +104,7 @@ impl Component for MainView {
         false
     }
 
-    fn draw(&self, frame: &mut Frame, area: Rect) -> Result<()> {
+    fn draw(&self, frame: &mut Frame, area: Rect, focused_id: ComponentId) -> Result<()> {
         let spacer_horizontal = LineSpacer {
             direction: Direction::Horizontal,
             begin: symbols::line::HORIZONTAL,
@@ -198,11 +198,13 @@ impl Component for MainView {
 
         frame.render_widget(Span::raw("Record Name"), area_record_name_label);
         self.record_name_field
-            .draw(frame, area_record_name_field)
+            .draw(frame, area_record_name_field, focused_id)
             .unwrap();
         frame.render_widget(Span::raw("Encoding"), area_encoding_label);
         // frame.render_widget(Span::raw("Field"), area_encoding_field);
-        self.test_field.draw(frame, area_encoding_field).unwrap();
+        self.test_field
+            .draw(frame, area_encoding_field, focused_id)
+            .unwrap();
 
         Ok(())
     }
