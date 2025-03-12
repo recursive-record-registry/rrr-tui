@@ -11,7 +11,10 @@ use ratatui::{
 
 use super::{Component, ComponentId};
 
-use crate::{action::Action, tui::Event};
+use crate::{
+    action::{Action, ComponentMessage},
+    tui::Event,
+};
 
 #[derive(Debug, Clone, PartialEq, Default)]
 struct Cursor {
@@ -170,7 +173,11 @@ impl InputField {
 }
 
 impl Component for InputField {
-    fn update(&mut self, action: Action) -> Result<Option<Action>> {
+    fn is_focusable(&self) -> bool {
+        true
+    }
+
+    fn update(&mut self, message: ComponentMessage) -> Result<Option<Action>> {
         Ok(None)
     }
 

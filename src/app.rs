@@ -3,13 +3,14 @@ use std::ops::ControlFlow;
 use color_eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::prelude::Rect;
-use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
-use tracing::{debug, info};
 
 use crate::{
-    action::{Action, FocusChange, FocusChangeDirection, FocusChangeScope},
-    components::{self, main_view::MainView, Component, ComponentId, ComponentIdPath},
+    action::{Action, ComponentMessage, FocusChange, FocusChangeDirection, FocusChangeScope},
+    components::{
+        self, find_component_by_id_mut, main_view::MainView, Component, ComponentId,
+        ComponentIdPath,
+    },
     tui::{Event, Tui},
 };
 
@@ -28,7 +29,7 @@ pub struct App {
 impl App {
     pub fn new(tick_rate: f64, frame_rate: f64) -> Result<Self> {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
-        Ok(Self {
+        let mut app = Self {
             tick_rate,
             frame_rate,
             should_quit: false,
@@ -38,7 +39,17 @@ impl App {
             focus_path: Default::default(),
             action_tx,
             action_rx,
-        })
+        };
+
+        // Ensure a valid initial focus.
+        if !app.root_component.is_focusable() {
+            app.change_focus(FocusChange {
+                direction: FocusChangeDirection::Forward,
+                scope: FocusChangeScope::HorizontalAndVertical,
+            })?;
+        }
+
+        Ok(app)
     }
 
     pub async fn run(&mut self) -> Result<()> {
@@ -80,17 +91,21 @@ impl App {
             Event::Key(key) => self.handle_key_event(key)?,
             _ => {}
         }
-        components::depth_first_search_mut(
-            &mut *self.root_component,
-            &mut |component| {
-                if let Some(action) = component.handle_event(event.clone()).unwrap() {
-                    action_tx.send(action).unwrap();
-                }
+        let (focused_component, _) = self
+            .focus_path
+            .find_deepest_available_component_mut(&mut *self.root_component);
+        focused_component.handle_event(event)?;
+        // components::depth_first_search_mut(
+        //     &mut *self.root_component,
+        //     &mut |component| {
+        //         if let Some(action) = component.handle_event(event.clone()).unwrap() {
+        //             action_tx.send(action).unwrap();
+        //         }
 
-                ControlFlow::Continue(())
-            },
-            &mut |_| ControlFlow::Continue(()),
-        );
+        //         ControlFlow::Continue(())
+        //     },
+        //     &mut |_| ControlFlow::Continue(()),
+        // );
         // for component in self.components.iter_mut() {
         //     if let Some(action) = component.handle_event(event.clone())? {
         //         action_tx.send(action)?;
@@ -142,34 +157,105 @@ impl App {
         Ok(())
     }
 
+    fn change_focus(&mut self, focus_change: FocusChange) -> Result<()> {
+        match focus_change.scope {
+            FocusChangeScope::HorizontalAndVertical => {
+                let mut focused_element_visited = false;
+                let mut first_focusable_element = None;
+                let mut last_focusable_element = None;
+                let mut previous_focusable_element = None;
+                let mut next_focusable_element = None;
+                let (_, deepest_available_path) = self
+                    .focus_path
+                    .find_deepest_available_component(&*self.root_component);
+                let deepest_available_id = deepest_available_path
+                    .last()
+                    .copied()
+                    .unwrap_or(self.root_component.get_id());
+
+                components::depth_first_search(
+                    &*self.root_component,
+                    &mut |component| -> ControlFlow<()> {
+                        if component.is_focusable() {
+                            if first_focusable_element.is_none() {
+                                first_focusable_element = Some(component);
+                            }
+
+                            if focused_element_visited && next_focusable_element.is_none() {
+                                next_focusable_element = Some(component);
+                            }
+
+                            if component.get_id() == deepest_available_id {
+                                focused_element_visited = true;
+                                previous_focusable_element = last_focusable_element;
+                            }
+
+                            last_focusable_element = Some(component);
+                        }
+
+                        ControlFlow::Continue(())
+                    },
+                    &mut |_component| -> ControlFlow<()> { ControlFlow::Continue(()) },
+                );
+
+                next_focusable_element = next_focusable_element.or(first_focusable_element);
+                previous_focusable_element = previous_focusable_element.or(last_focusable_element);
+
+                if focus_change.direction == FocusChangeDirection::Backward {
+                    std::mem::swap(&mut next_focusable_element, &mut previous_focusable_element);
+                }
+
+                if let Some(next_focusable_element) = next_focusable_element {
+                    let next_focusable_element_id = next_focusable_element.get_id();
+                    let (_, focus_path) = find_component_by_id_mut(
+                        &mut *self.root_component,
+                        next_focusable_element_id,
+                    )
+                    .unwrap();
+                    tracing::debug!(?focus_path, "Focus changed.");
+                    self.focus_path = focus_path;
+                }
+            }
+            FocusChangeScope::Horizontal => unimplemented!(),
+            FocusChangeScope::Vertical => unimplemented!(),
+        }
+
+        Ok(())
+    }
+
     fn handle_actions(&mut self, tui: &mut Tui) -> Result<()> {
         while let Ok(action) = self.action_rx.try_recv() {
-            if action != Action::Tick && action != Action::Render {
-                debug!("{action:?}");
-            }
+            let mut component_message = None;
+
             match action {
                 Action::Tick => {
                     self.last_tick_key_events.drain(..);
+                    component_message = Some(ComponentMessage::OnTick);
                 }
+                Action::BroadcastMessage(message) => component_message = Some(message),
                 Action::Quit => self.should_quit = true,
                 Action::Suspend => self.should_suspend = true,
                 Action::Resume => self.should_suspend = false,
                 Action::ClearScreen => tui.terminal.clear()?,
                 Action::Resize(w, h) => self.handle_resize(tui, w, h)?,
                 Action::Render => self.render(tui)?,
+                Action::FocusChange(focus_change) => self.change_focus(focus_change)?,
                 _ => {}
             }
-            components::depth_first_search_mut(
-                &mut *self.root_component,
-                &mut |component| {
-                    if let Some(action) = component.update(action.clone()).unwrap() {
-                        self.action_tx.send(action).unwrap()
-                    }
 
-                    ControlFlow::Continue(())
-                },
-                &mut |_| ControlFlow::Continue(()),
-            );
+            if let Some(component_message) = component_message {
+                components::depth_first_search_mut(
+                    &mut *self.root_component,
+                    &mut |component| -> ControlFlow<()> {
+                        if let Some(action) = component.update(component_message.clone()).unwrap() {
+                            self.action_tx.send(action).unwrap()
+                        }
+
+                        ControlFlow::Continue(())
+                    },
+                    &mut |_| ControlFlow::Continue(()),
+                );
+            }
         }
         Ok(())
     }

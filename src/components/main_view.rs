@@ -6,7 +6,9 @@ use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table};
 use ratatui::Frame;
 use tracing::{debug, info};
 
+use crate::action::ComponentMessage;
 use crate::config::PROJECT_VERSION;
+use crate::tui::Event;
 
 use super::input_field::InputField;
 use super::{Component, ComponentId};
@@ -66,9 +68,11 @@ impl Widget for LineSpacer {
     }
 }
 
+#[derive(Debug)]
 pub struct MainView {
     id: ComponentId,
     record_name_field: InputField,
+    test_field: InputField,
 }
 
 impl MainView {
@@ -82,17 +86,22 @@ impl MainView {
         Self {
             id,
             record_name_field: InputField::new(ComponentId::new(), tx.clone()),
+            test_field: InputField::new(ComponentId::new(), tx.clone()),
         }
     }
 }
 
 impl Component for MainView {
-    fn update(&mut self, action: crate::action::Action) -> Result<Option<crate::action::Action>> {
+    fn update(&mut self, message: ComponentMessage) -> Result<Option<crate::action::Action>> {
         Ok(None)
     }
 
-    fn handle_event(&mut self, event: crate::tui::Event) -> Result<Option<crate::action::Action>> {
+    fn handle_event(&mut self, event: Event) -> Result<Option<crate::action::Action>> {
         Ok(None)
+    }
+
+    fn is_focusable(&self) -> bool {
+        false
     }
 
     fn draw(&self, frame: &mut Frame, area: Rect) -> Result<()> {
@@ -192,7 +201,8 @@ impl Component for MainView {
             .draw(frame, area_record_name_field)
             .unwrap();
         frame.render_widget(Span::raw("Encoding"), area_encoding_label);
-        frame.render_widget(Span::raw("Field"), area_encoding_field);
+        // frame.render_widget(Span::raw("Field"), area_encoding_field);
+        self.test_field.draw(frame, area_encoding_field).unwrap();
 
         Ok(())
     }
@@ -202,11 +212,11 @@ impl Component for MainView {
     }
 
     fn get_children(&self) -> Vec<&dyn Component> {
-        vec![&self.record_name_field]
+        vec![&self.record_name_field, &self.test_field]
     }
 
     fn get_children_mut(&mut self) -> Vec<&mut dyn Component> {
-        vec![&mut self.record_name_field]
+        vec![&mut self.record_name_field, &mut self.test_field]
     }
 
     fn get_accessibility_node(&self) -> Result<accesskit::Node> {
