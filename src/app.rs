@@ -115,6 +115,7 @@ impl App {
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<()> {
+        tracing::trace!(?key);
         let action = match key {
             KeyEvent {
                 code: KeyCode::Char('c' | 'd'),
@@ -122,14 +123,14 @@ impl App {
                 ..
             } => Some(Action::Quit),
             KeyEvent {
-                code: KeyCode::Tab,
+                code: code @ (KeyCode::Tab | KeyCode::BackTab),
                 modifiers: modifiers @ (KeyModifiers::NONE | KeyModifiers::SHIFT),
                 ..
             } => Some(Action::FocusChange(FocusChange {
-                direction: if modifiers == KeyModifiers::NONE {
-                    FocusChangeDirection::Forward
-                } else {
+                direction: if (modifiers != KeyModifiers::NONE) || (code == KeyCode::BackTab) {
                     FocusChangeDirection::Backward
+                } else {
+                    FocusChangeDirection::Forward
                 },
                 scope: FocusChangeScope::HorizontalAndVertical,
             })),
