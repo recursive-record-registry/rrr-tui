@@ -8,6 +8,7 @@ use ratatui::{
     text::{Line, Span},
     Frame,
 };
+use tokio::sync::mpsc::UnboundedSender;
 
 use super::{Component, ComponentId};
 
@@ -79,10 +80,7 @@ pub struct InputField {
 }
 
 impl InputField {
-    pub fn new(
-        id: ComponentId,
-        tx: tokio::sync::mpsc::UnboundedSender<crate::action::Action>,
-    ) -> Self
+    pub fn new(id: ComponentId, tx: &UnboundedSender<Action>) -> Self
     where
         Self: Sized,
     {

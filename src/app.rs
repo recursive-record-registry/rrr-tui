@@ -35,7 +35,7 @@ impl App {
             should_quit: false,
             should_suspend: false,
             last_tick_key_events: Vec::new(),
-            root_component: Box::new(MainView::new(ComponentId::root(), action_tx.clone())),
+            root_component: Box::new(MainView::new(ComponentId::root(), &action_tx)),
             focus_path: Default::default(),
             action_tx,
             action_rx,

@@ -4,12 +4,14 @@ use ratatui::prelude::*;
 use ratatui::widgets::canvas::Label;
 use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table};
 use ratatui::Frame;
+use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, info};
 
-use crate::action::ComponentMessage;
+use crate::action::{Action, ComponentMessage};
 use crate::config::PROJECT_VERSION;
 use crate::tui::Event;
 
+use super::checkbox::Checkbox;
 use super::input_field::InputField;
 use super::{Component, ComponentId};
 
@@ -72,21 +74,25 @@ impl Widget for LineSpacer {
 pub struct MainView {
     id: ComponentId,
     record_name_field: InputField,
-    test_field: InputField,
+    encoding_utf8_checkbox: Checkbox,
+    encoding_hex_checkbox: Checkbox,
 }
 
 impl MainView {
-    pub fn new(
-        id: ComponentId,
-        tx: tokio::sync::mpsc::UnboundedSender<crate::action::Action>,
-    ) -> Self
+    pub fn new(id: ComponentId, tx: &UnboundedSender<Action>) -> Self
     where
         Self: Sized,
     {
         Self {
             id,
-            record_name_field: InputField::new(ComponentId::new(), tx.clone()),
-            test_field: InputField::new(ComponentId::new(), tx.clone()),
+            record_name_field: InputField::new(ComponentId::new(), tx),
+            encoding_utf8_checkbox: Checkbox::new(ComponentId::new(), tx, "UTF-8".into(), true),
+            encoding_hex_checkbox: Checkbox::new(
+                ComponentId::new(),
+                tx,
+                "Hexadecimal Byte String".into(),
+                false,
+            ),
         }
     }
 }
@@ -201,9 +207,16 @@ impl Component for MainView {
             .draw(frame, area_record_name_field, focused_id)
             .unwrap();
         frame.render_widget(Span::raw("Encoding"), area_encoding_label);
-        // frame.render_widget(Span::raw("Field"), area_encoding_field);
-        self.test_field
-            .draw(frame, area_encoding_field, focused_id)
+        let [area_encoding_utf8, area_encoding_hex] = Layout::default()
+            .direction(Direction::Horizontal)
+            .spacing(2)
+            .constraints([Constraint::Length(9), Constraint::Fill(1)])
+            .areas(area_encoding_field);
+        self.encoding_utf8_checkbox
+            .draw(frame, area_encoding_utf8, focused_id)
+            .unwrap();
+        self.encoding_hex_checkbox
+            .draw(frame, area_encoding_hex, focused_id)
             .unwrap();
 
         Ok(())
@@ -214,11 +227,19 @@ impl Component for MainView {
     }
 
     fn get_children(&self) -> Vec<&dyn Component> {
-        vec![&self.record_name_field, &self.test_field]
+        vec![
+            &self.record_name_field,
+            &self.encoding_utf8_checkbox,
+            &self.encoding_hex_checkbox,
+        ]
     }
 
     fn get_children_mut(&mut self) -> Vec<&mut dyn Component> {
-        vec![&mut self.record_name_field, &mut self.test_field]
+        vec![
+            &mut self.record_name_field,
+            &mut self.encoding_utf8_checkbox,
+            &mut self.encoding_hex_checkbox,
+        ]
     }
 
     fn get_accessibility_node(&self) -> Result<accesskit::Node> {
