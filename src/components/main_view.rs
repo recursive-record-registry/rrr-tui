@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use accesskit::TreeUpdate;
 use color_eyre::eyre::Result;
 use ratatui::prelude::*;
@@ -13,6 +15,7 @@ use crate::tui::Event;
 
 use super::checkbox::Checkbox;
 use super::input_field::InputField;
+use super::radio_array::RadioArray;
 use super::{Component, ComponentId};
 
 #[derive(Clone)]
@@ -70,12 +73,26 @@ impl Widget for LineSpacer {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Encoding {
+    Utf8,
+    Hex,
+}
+
+impl Display for Encoding {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Utf8 => write!(f, "UTF-8"),
+            Self::Hex => write!(f, "Hexadecimal Byte String"),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct MainView {
     id: ComponentId,
     record_name_field: InputField,
-    encoding_utf8_checkbox: Checkbox,
-    encoding_hex_checkbox: Checkbox,
+    encoding_radio_array: RadioArray<Encoding>,
 }
 
 impl MainView {
@@ -86,12 +103,12 @@ impl MainView {
         Self {
             id,
             record_name_field: InputField::new(ComponentId::new(), tx),
-            encoding_utf8_checkbox: Checkbox::new(ComponentId::new(), tx, "UTF-8".into(), true),
-            encoding_hex_checkbox: Checkbox::new(
+            encoding_radio_array: RadioArray::new(
                 ComponentId::new(),
                 tx,
-                "Hexadecimal Byte String".into(),
-                false,
+                vec![Encoding::Utf8, Encoding::Hex],
+                &Encoding::Utf8,
+                Direction::Horizontal,
             ),
         }
     }
@@ -207,17 +224,19 @@ impl Component for MainView {
             .draw(frame, area_record_name_field, focused_id)
             .unwrap();
         frame.render_widget(Span::raw("Encoding"), area_encoding_label);
-        let [area_encoding_utf8, area_encoding_hex] = Layout::default()
-            .direction(Direction::Horizontal)
-            .spacing(2)
-            .constraints([Constraint::Length(9), Constraint::Fill(1)])
-            .areas(area_encoding_field);
-        self.encoding_utf8_checkbox
-            .draw(frame, area_encoding_utf8, focused_id)
-            .unwrap();
-        self.encoding_hex_checkbox
-            .draw(frame, area_encoding_hex, focused_id)
-            .unwrap();
+        self.encoding_radio_array
+            .draw(frame, area_encoding_field, focused_id);
+        // let [area_encoding_utf8, area_encoding_hex] = Layout::default()
+        //     .direction(Direction::Horizontal)
+        //     .spacing(2)
+        //     .constraints([Constraint::Length(9), Constraint::Fill(1)])
+        //     .areas(area_encoding_field);
+        // self.encoding_utf8_checkbox
+        //     .draw(frame, area_encoding_utf8, focused_id)
+        //     .unwrap();
+        // self.encoding_hex_checkbox
+        //     .draw(frame, area_encoding_hex, focused_id)
+        //     .unwrap();
 
         Ok(())
     }
@@ -229,16 +248,18 @@ impl Component for MainView {
     fn get_children(&self) -> Vec<&dyn Component> {
         vec![
             &self.record_name_field,
-            &self.encoding_utf8_checkbox,
-            &self.encoding_hex_checkbox,
+            &self.encoding_radio_array,
+            // &self.encoding_utf8_checkbox,
+            // &self.encoding_hex_checkbox,
         ]
     }
 
     fn get_children_mut(&mut self) -> Vec<&mut dyn Component> {
         vec![
             &mut self.record_name_field,
-            &mut self.encoding_utf8_checkbox,
-            &mut self.encoding_hex_checkbox,
+            &mut self.encoding_radio_array,
+            // &mut self.encoding_utf8_checkbox,
+            // &mut self.encoding_hex_checkbox,
         ]
     }
 

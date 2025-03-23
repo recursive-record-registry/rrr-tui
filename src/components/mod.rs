@@ -14,11 +14,10 @@ use crate::{
     tui::Event,
 };
 
-// pub mod fps;
-// pub mod home;
 pub mod checkbox;
 pub mod input_field;
 pub mod main_view;
+pub mod radio_array;
 
 mod id {
     use std::{

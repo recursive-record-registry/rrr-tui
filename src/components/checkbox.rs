@@ -3,7 +3,7 @@ use std::{borrow::Cow, ops::Range, sync::Arc};
 use color_eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::{
-    layout::Rect,
+    layout::{Rect, Size},
     style::{Color, Style, Stylize},
     text::{Line, Span},
     Frame,
@@ -21,7 +21,9 @@ use crate::{
 pub struct Checkbox {
     id: ComponentId,
     label: Cow<'static, str>,
-    checked: bool,
+    pub checked: bool,
+    string_checked: Cow<'static, str>,
+    string_unchecked: Cow<'static, str>,
     action_tx: UnboundedSender<Action>,
 }
 
@@ -39,8 +41,33 @@ impl Checkbox {
             id,
             label,
             checked,
+            string_checked: "[x]".into(),
+            string_unchecked: "[ ]".into(),
             action_tx: tx.clone(),
         }
+    }
+
+    pub fn with_checkbox(self, checked: Cow<'static, str>, unchecked: Cow<'static, str>) -> Self {
+        Self {
+            string_checked: checked,
+            string_unchecked: unchecked,
+            ..self
+        }
+    }
+
+    pub fn size(&self) -> Size {
+        Size::new(
+            1 + Line::from_iter([
+                Span::raw(if self.checked {
+                    self.string_checked.as_ref()
+                } else {
+                    self.string_unchecked.as_ref()
+                }),
+                Span::raw(self.label.as_ref()),
+            ])
+            .width() as u16,
+            1,
+        )
     }
 }
 
@@ -61,6 +88,12 @@ impl Component for Checkbox {
                 ..
             }) => {
                 self.checked = !self.checked;
+                self.action_tx.send(Action::BroadcastMessage(
+                    ComponentMessage::OnCheckboxToggle {
+                        id: self.id,
+                        new_value: self.checked,
+                    },
+                ))?;
                 Some(Action::Render)
             }
             _ => None,
@@ -80,45 +113,17 @@ impl Component for Checkbox {
             Style::new()
         };
         let spans = [
-            Span::raw("["),
-            Span::raw(if self.checked { "x" } else { " " }).style(checkmark_style),
-            Span::raw("] "),
+            Span::raw(if self.checked {
+                self.string_checked.as_ref()
+            } else {
+                self.string_unchecked.as_ref()
+            })
+            .style(checkmark_style),
+            Span::raw(" "),
             Span::raw(self.label.as_ref()),
         ];
 
         frame.render_widget(Line::from_iter(spans), area);
-
-        // if focused {
-        //     let minmax = self.cursor.minmax();
-
-        //     if minmax.is_empty() {
-        //         let mut spans = vec![Span::styled(&self.content[..minmax.start], Style::new())];
-        //         if minmax.start < self.content.len() {
-        //             let mut chars = self.content[minmax.start..].chars();
-        //             let cursor_char = chars.next().into_iter().collect::<String>();
-        //             let remaining = chars.collect::<String>();
-        //             spans.extend([
-        //                 Span::styled(cursor_char, Style::new().reversed()),
-        //                 Span::styled(remaining, Style::new()),
-        //             ]);
-        //         } else {
-        //             spans.push(Span::styled(" ", Style::new().reversed()));
-        //         }
-        //         frame.render_widget(Line::from(spans), area);
-        //     } else {
-        //         let spans = vec![
-        //             Span::styled(&self.content[..minmax.start], Style::new()).width(),
-        //             Span::styled(
-        //                 &self.content[minmax.start..minmax.end],
-        //                 Style::new().white().bg(Color::Rgb(0x5F, 0x5F, 0x5F)),
-        //             ),
-        //             Span::styled(&self.content[minmax.end..], Style::new()),
-        //         ];
-        //         frame.render_widget(Line::from(spans), area);
-        //     }
-        // } else {
-        //     frame.render_widget(Span::styled(&self.content, Style::new()), area);
-        // }
 
         Ok(())
     }
