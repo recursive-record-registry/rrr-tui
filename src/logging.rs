@@ -5,6 +5,7 @@ use color_eyre::Result;
 use tracing::Subscriber;
 use tracing_error::ErrorLayer;
 use tracing_subscriber::registry::LookupSpan;
+use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 use crate::config;
@@ -76,16 +77,10 @@ mod tracy {
     }
 }
 
-/// Enable logging if the `LOG_FILE` environment variable is specified.
-pub fn init() -> Result<()> {
-    // let directory = config::get_data_dir();
-    // std::fs::create_dir_all(directory.clone())?;
-    let log_path = match std::env::var("LOG_FILE") {
-        Ok(log_file) => log_file,
-        Err(VarError::NotPresent) => return Ok(()),
-        Err(err) => return Err(err.into()),
-    };
-    let log_file = std::fs::File::create(log_path)?;
+pub fn create_file_layer<S>(log_path: String) -> Result<impl tracing_subscriber::layer::Layer<S>>
+where
+    S: Subscriber + for<'span> LookupSpan<'span>,
+{
     let env_filter = EnvFilter::builder().with_default_directive(tracing::Level::INFO.into());
     // If the `RUST_LOG` environment variable is set, use that as the default, otherwise use the
     // value of the `LOG_ENV` environment variable. If the `LOG_ENV` environment variable contains
@@ -93,7 +88,7 @@ pub fn init() -> Result<()> {
     let env_filter = env_filter
         .try_from_env()
         .or_else(|_| env_filter.with_env_var(LOG_ENV.clone()).from_env())?;
-
+    let log_file = std::fs::File::create(log_path)?;
     let file_subscriber = fmt::layer()
         .with_file(true)
         .with_line_number(true)
@@ -101,10 +96,25 @@ pub fn init() -> Result<()> {
         .with_target(false)
         .with_ansi(false)
         .with_filter(env_filter);
+    Ok(file_subscriber)
+}
 
-    let subscriber = tracing_subscriber::registry()
-        .with(file_subscriber)
-        .with(ErrorLayer::default());
+/// Enable logging if the `LOG_FILE` environment variable is specified.
+pub fn init() -> Result<()> {
+    let subscriber = tracing_subscriber::registry();
+
+    match std::env::var("LOG_FILE") {
+        Ok(log_path) => with_rest(subscriber.with(create_file_layer(log_path)?)),
+        Err(VarError::NotPresent) => with_rest(subscriber),
+        Err(err) => Err(err.into()),
+    }
+}
+
+fn with_rest<S>(subscriber: S) -> Result<()>
+where
+    S: Subscriber + Send + Sync + 'static + SubscriberInitExt + for<'span> LookupSpan<'span>,
+{
+    let subscriber = subscriber.with(ErrorLayer::default());
 
     #[cfg(feature = "opentelemetry")]
     let subscriber = subscriber.with(self::opentelemetry::create_layer()?);
