@@ -4,9 +4,11 @@ use color_eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::prelude::Rect;
 use tokio::sync::mpsc;
+use tracing::instrument;
 
 use crate::{
     action::{Action, ComponentMessage, FocusChange, FocusChangeDirection, FocusChangeScope},
+    args::Args,
     components::{
         self, find_component_by_id_mut, main_view::MainView, Component, ComponentId,
         ComponentIdPath,
@@ -14,6 +16,7 @@ use crate::{
     tui::{Event, Tui},
 };
 
+#[derive(Debug)]
 pub struct App {
     tick_rate: f64,
     frame_rate: f64,
@@ -27,15 +30,16 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(tick_rate: f64, frame_rate: f64) -> Result<Self> {
+    #[instrument]
+    pub fn new(args: Args) -> Result<Self> {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
         let mut app = Self {
-            tick_rate,
-            frame_rate,
+            tick_rate: args.tick_rate,
+            frame_rate: args.frame_rate,
             should_quit: false,
             should_suspend: false,
             last_tick_key_events: Vec::new(),
-            root_component: Box::new(MainView::new(ComponentId::root(), &action_tx)),
+            root_component: Box::new(MainView::new(ComponentId::root(), &action_tx, &args)),
             focus_path: Default::default(),
             action_tx,
             action_rx,
@@ -52,6 +56,7 @@ impl App {
         Ok(app)
     }
 
+    #[instrument]
     pub async fn run(&mut self) -> Result<()> {
         let mut tui = Tui::new()?
             // .mouse(true) // uncomment this line to enable mouse support
@@ -78,6 +83,7 @@ impl App {
         Ok(())
     }
 
+    #[instrument]
     async fn handle_events(&mut self, tui: &mut Tui) -> Result<()> {
         let Some(event) = tui.next_event().await else {
             return Ok(());
@@ -114,6 +120,7 @@ impl App {
         Ok(())
     }
 
+    #[instrument]
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<()> {
         tracing::trace!(?key);
         let action = match key {
@@ -158,6 +165,7 @@ impl App {
         Ok(())
     }
 
+    #[instrument]
     fn change_focus(&mut self, focus_change: FocusChange) -> Result<()> {
         match focus_change.scope {
             FocusChangeScope::HorizontalAndVertical => {
@@ -232,6 +240,7 @@ impl App {
         Ok(())
     }
 
+    #[instrument]
     fn handle_actions(&mut self, tui: &mut Tui) -> Result<()> {
         while let Ok(action) = self.action_rx.try_recv() {
             let mut component_message = None;
@@ -269,12 +278,14 @@ impl App {
         Ok(())
     }
 
+    #[instrument]
     fn handle_resize(&mut self, tui: &mut Tui, w: u16, h: u16) -> Result<()> {
         tui.resize(Rect::new(0, 0, w, h))?;
         self.render(tui)?;
         Ok(())
     }
 
+    #[instrument]
     fn render(&mut self, tui: &mut Tui) -> Result<()> {
         let mut result = Ok(());
         tui.draw(|frame| {

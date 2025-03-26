@@ -1,12 +1,13 @@
+use args::Args;
 use clap::Parser;
-use cli::Cli;
 use color_eyre::Result;
+use tracing::Instrument;
 
 use crate::app::App;
 
 mod action;
 mod app;
-mod cli;
+mod args;
 mod components;
 mod config;
 mod errors;
@@ -18,8 +19,12 @@ async fn main() -> Result<()> {
     crate::errors::init()?;
     crate::logging::init()?;
 
-    let args = Cli::parse();
-    let mut app = App::new(args.tick_rate, args.frame_rate)?;
-    app.run().await?;
-    Ok(())
+    async move {
+        let args = Args::parse();
+        let mut app = App::new(args)?;
+        app.run().await?;
+        Ok(())
+    }
+    .instrument(tracing::info_span!("main"))
+    .await
 }

@@ -6,10 +6,12 @@ use ratatui::prelude::*;
 use ratatui::widgets::canvas::Label;
 use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table};
 use ratatui::Frame;
+use rrr::registry::Registry;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, info};
 
 use crate::action::{Action, ComponentMessage};
+use crate::args::Args;
 use crate::config::PROJECT_VERSION;
 use crate::tui::Event;
 
@@ -96,10 +98,15 @@ pub struct MainView {
 }
 
 impl MainView {
-    pub fn new(id: ComponentId, tx: &UnboundedSender<Action>) -> Self
+    pub fn new(id: ComponentId, tx: &UnboundedSender<Action>, args: &Args) -> Self
     where
         Self: Sized,
     {
+        // let args = args.clone();
+        // tokio::spawn(async move {
+        //     tracing::trace!(dir=?args.registry_directory);
+        //     let result = Registry::open(args.registry_directory).await.unwrap();
+        // });
         Self {
             id,
             record_name_field: InputField::new(ComponentId::new(), tx),

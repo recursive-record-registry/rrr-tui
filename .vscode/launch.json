@@ -5,6 +5,21 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "type": "lldb-dap",
+            "request": "launch",
+            "name": "Debug LLDB-DAP",
+            "preRunCommands": [
+                "cargo build --bin=rrr-tui-3 --package=rrr-tui-3"
+            ],
+            "program": "target/rrr-tui-3.exe",
+            "args": [],
+            "env": {
+                "LOG_FILE": "rrr_tui.LOCAL.log",
+                "RUST_LOG": "rrr_tui_3=trace",
+                "RUST_BACKTRACE": "1"
+            },
+        },
+        {
             "type": "lldb",
             "request": "launch",
             "name": "Debug executable 'rrr-tui-3'",
@@ -25,7 +40,8 @@
                 "RUST_LOG": "rrr_tui_3=trace",
                 "RUST_BACKTRACE": "1"
             },
-            "cwd": "${workspaceFolder}"
+            //"cwd": "${workspaceFolder}"
+            "cwd": "${workspaceFolder}/../rrr-make/target/tmp/test-registry-3"
         },
         {
             "type": "lldb",
