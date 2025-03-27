@@ -46,7 +46,7 @@ pub enum Event {
 #[derive(Debug)]
 pub struct Tui {
     pub terminal: ratatui::Terminal<Backend<Stdout>>,
-    pub task: JoinHandle<()>,
+    pub task: Option<JoinHandle<()>>,
     pub cancellation_token: CancellationToken,
     pub event_rx: UnboundedReceiver<Event>,
     pub event_tx: UnboundedSender<Event>,
@@ -63,7 +63,7 @@ impl Tui {
         let (event_tx, event_rx) = mpsc::unbounded_channel();
         Ok(Self {
             terminal: ratatui::Terminal::new(Backend::new(stdout()))?,
-            task: tokio::spawn(async {}),
+            task: None,
             cancellation_token: CancellationToken::new(),
             event_rx,
             event_tx,
@@ -104,12 +104,12 @@ impl Tui {
             self.tick_rate,
             self.frame_rate,
         );
-        self.task = tokio::spawn(
+        self.task = Some(tokio::spawn(
             async {
                 event_loop.await;
             }
-            .instrument(tracing::info_span!("test")),
-        );
+            .instrument(self.parent_span.clone()),
+        ));
     }
 
     async fn event_loop(
@@ -160,11 +160,13 @@ impl Tui {
     pub fn stop(&self) -> Result<()> {
         self.cancel();
         let mut counter = 0;
-        while !self.task.is_finished() {
+        while let Some(task) = self.task.as_ref()
+            && !task.is_finished()
+        {
             std::thread::sleep(Duration::from_millis(1));
             counter += 1;
             if counter > 50 {
-                self.task.abort();
+                task.abort();
             }
             if counter > 100 {
                 error!("Failed to abort task in 100 milliseconds for unknown reason");

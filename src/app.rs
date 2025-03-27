@@ -259,7 +259,6 @@ impl App {
                 Action::Resize(w, h) => self.handle_resize(tui, w, h)?,
                 Action::Render => self.render(tui)?,
                 Action::FocusChange(focus_change) => self.change_focus(focus_change)?,
-                _ => {}
             }
 
             if let Some(component_message) = component_message {

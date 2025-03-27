@@ -13,6 +13,31 @@ lazy_static::lazy_static! {
     pub static ref LOG_ENV: String = format!("{}_LOG_LEVEL", env::PROJECT_NAME.to_uppercase().clone());
 }
 
+/// An RAII guard that executes the stored function on drop.
+pub struct OnDrop(Option<Box<dyn FnOnce()>>);
+
+impl OnDrop {
+    #[allow(unused)]
+    pub fn new(on_drop: Box<dyn FnOnce()>) -> Self {
+        Self(Some(on_drop))
+    }
+}
+
+impl Drop for OnDrop {
+    fn drop(&mut self) {
+        if let Some(on_drop) = self.0.take() {
+            (on_drop)();
+        }
+    }
+}
+
+/// An RAII guard that takes care of shutting down all of tracing-related services on drop.
+#[derive(Default)]
+pub struct TracingGuard {
+    #[allow(unused)]
+    on_drop: Vec<OnDrop>,
+}
+
 #[cfg(feature = "opentelemetry")]
 mod opentelemetry {
     use super::*;
@@ -24,6 +49,7 @@ mod opentelemetry {
     use ::std::time::Duration;
 
     pub fn create_tracer_layer<S>(
+        tracing_guard: &mut TracingGuard,
     ) -> Result<tracing_opentelemetry::OpenTelemetryLayer<S, opentelemetry_sdk::trace::Tracer>>
     where
         S: Subscriber + for<'span> LookupSpan<'span>,
@@ -44,10 +70,16 @@ mod opentelemetry {
         let tracer = tracer_provider.tracer(&*env::PKG_NAME);
         let layer = tracing_opentelemetry::layer::<S>().with_tracer(tracer);
 
+        tracing_guard.on_drop.push(OnDrop::new(Box::new(move || {
+            tracer_provider.shutdown().unwrap();
+        })));
+
         Ok(layer)
     }
 
-    pub fn create_meter_layer<S>() -> Result<tracing_opentelemetry::MetricsLayer<S>>
+    pub fn create_meter_layer<S>(
+        tracing_guard: &mut TracingGuard,
+    ) -> Result<tracing_opentelemetry::MetricsLayer<S>>
     where
         S: Subscriber + for<'span> LookupSpan<'span>,
     {
@@ -64,7 +96,12 @@ mod opentelemetry {
                     .build(),
             )
             .build();
-        let layer = tracing_opentelemetry::MetricsLayer::new(meter_provider);
+        // Clone is a shallow copy of a smart pointer.
+        let layer = tracing_opentelemetry::MetricsLayer::new(meter_provider.clone());
+
+        tracing_guard.on_drop.push(OnDrop::new(Box::new(move || {
+            meter_provider.shutdown().unwrap();
+        })));
 
         Ok(layer)
     }
@@ -93,14 +130,19 @@ mod tracy {
         }
     }
 
-    pub fn create_layer() -> Result<tracing_tracy::TracyLayer<TracyLayerConfig>> {
+    pub fn create_layer(
+        _tracing_guard: &mut TracingGuard,
+    ) -> Result<tracing_tracy::TracyLayer<TracyLayerConfig>> {
         let tracy_layer = tracing_tracy::TracyLayer::new(TracyLayerConfig::default());
 
         Ok(tracy_layer)
     }
 }
 
-pub fn create_file_layer<S>(log_path: String) -> Result<impl tracing_subscriber::layer::Layer<S>>
+pub fn create_file_layer<S>(
+    log_path: String,
+    _tracing_guard: &mut TracingGuard,
+) -> Result<impl tracing_subscriber::layer::Layer<S>>
 where
     S: Subscriber + for<'span> LookupSpan<'span>,
 {
@@ -123,17 +165,23 @@ where
 }
 
 /// Enable logging if the `LOG_FILE` environment variable is specified.
-pub fn init() -> Result<()> {
+pub fn init() -> Result<TracingGuard> {
+    let mut tracing_guard = TracingGuard::default();
     let subscriber = tracing_subscriber::registry();
 
     match std::env::var("LOG_FILE") {
-        Ok(log_path) => with_rest(subscriber.with(create_file_layer(log_path)?)),
-        Err(VarError::NotPresent) => with_rest(subscriber),
-        Err(err) => Err(err.into()),
+        Ok(log_path) => with_rest(
+            subscriber.with(create_file_layer(log_path, &mut tracing_guard)?),
+            &mut tracing_guard,
+        )?,
+        Err(VarError::NotPresent) => with_rest(subscriber, &mut tracing_guard)?,
+        Err(err) => return Err(err.into()),
     }
+
+    Ok(tracing_guard)
 }
 
-fn with_rest<S>(subscriber: S) -> Result<()>
+fn with_rest<S>(subscriber: S, tracing_guard: &mut TracingGuard) -> Result<()>
 where
     S: Subscriber + Send + Sync + 'static + SubscriberInitExt + for<'span> LookupSpan<'span>,
 {
@@ -141,11 +189,11 @@ where
 
     #[cfg(feature = "opentelemetry")]
     let subscriber = subscriber
-        .with(self::opentelemetry::create_tracer_layer()?)
-        .with(self::opentelemetry::create_meter_layer()?);
+        .with(self::opentelemetry::create_tracer_layer(tracing_guard)?)
+        .with(self::opentelemetry::create_meter_layer(tracing_guard)?);
 
     #[cfg(feature = "tracy")]
-    let subscriber = subscriber.with(self::tracy::create_layer()?);
+    let subscriber = subscriber.with(self::tracy::create_layer(tracing_guard)?);
 
     subscriber.try_init()?;
     Ok(())

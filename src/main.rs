@@ -1,7 +1,9 @@
+#![feature(let_chains)]
+
 use args::Args;
 use clap::Parser;
 use color_eyre::Result;
-use tracing::Instrument;
+use tracing::{debug, Instrument};
 
 use crate::app::App;
 
@@ -17,14 +19,19 @@ mod tui;
 #[tokio::main]
 async fn main() -> Result<()> {
     crate::errors::init()?;
-    crate::logging::init()?;
+    let tracing_guard = crate::logging::init()?;
 
     async move {
         let args = Args::parse();
         let mut app = App::new(args)?;
         app.run().await?;
-        Ok(())
+        Ok(()) as Result<()>
     }
     .instrument(tracing::info_span!("main"))
-    .await
+    .await?;
+
+    debug!("Exited successfully.");
+    drop(tracing_guard);
+
+    Ok(())
 }

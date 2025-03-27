@@ -4,7 +4,9 @@ use color_eyre::eyre::Result;
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders};
 use ratatui::Frame;
+use rrr::registry::Registry;
 use tokio::sync::mpsc::UnboundedSender;
+use tracing::{info_span, Instrument};
 
 use crate::action::{Action, ComponentMessage};
 use crate::args::Args;
@@ -97,11 +99,14 @@ impl MainView {
     where
         Self: Sized,
     {
-        // let args = args.clone();
-        // tokio::spawn(async move {
-        //     tracing::trace!(dir=?args.registry_directory);
-        //     let result = Registry::open(args.registry_directory).await.unwrap();
-        // });
+        let args = args.clone();
+        tokio::spawn(
+            async move {
+                tracing::trace!(dir=?args.registry_directory);
+                let result = Registry::open(args.registry_directory).await.unwrap();
+            }
+            .instrument(info_span!("load registry task")),
+        );
         Self {
             id,
             record_name_field: InputField::new(ComponentId::new(), tx),
