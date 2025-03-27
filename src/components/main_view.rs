@@ -12,7 +12,7 @@ use tracing::{debug, info};
 
 use crate::action::{Action, ComponentMessage};
 use crate::args::Args;
-use crate::config::PROJECT_VERSION;
+use crate::env::PROJECT_VERSION;
 use crate::tui::Event;
 
 use super::checkbox::Checkbox;

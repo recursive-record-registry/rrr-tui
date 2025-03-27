@@ -9,7 +9,7 @@ mod action;
 mod app;
 mod args;
 mod components;
-mod config;
+mod env;
 mod errors;
 mod logging;
 mod tui;

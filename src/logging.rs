@@ -8,42 +8,68 @@ use tracing_subscriber::registry::LookupSpan;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
-use crate::config;
+use crate::env;
 
 lazy_static::lazy_static! {
-    pub static ref LOG_ENV: String = format!("{}_LOG_LEVEL", config::PROJECT_NAME.clone());
+    pub static ref LOG_ENV: String = format!("{}_LOG_LEVEL", env::PROJECT_NAME.to_uppercase().clone());
 }
 
 #[cfg(feature = "opentelemetry")]
 mod opentelemetry {
     use super::*;
+    use ::opentelemetry::logs::LoggerProvider;
+    use ::opentelemetry::metrics::Meter;
     use ::opentelemetry::trace::TracerProvider;
     use ::opentelemetry_otlp::{Protocol, WithExportConfig};
     use ::opentelemetry_sdk::trace::SdkTracerProvider;
     use ::opentelemetry_sdk::Resource;
+    use opentelemetry_sdk::logs::SdkLoggerProvider;
+    use opentelemetry_sdk::metrics::SdkMeterProvider;
 
-    pub fn create_layer<S>(
+    pub fn create_tracer_layer<S>(
     ) -> Result<tracing_opentelemetry::OpenTelemetryLayer<S, opentelemetry_sdk::trace::Tracer>>
     where
         S: Subscriber + for<'span> LookupSpan<'span>,
     {
-        let otel_exporter = opentelemetry_otlp::SpanExporter::builder()
+        let span_exporter = opentelemetry_otlp::SpanExporter::builder()
             .with_http()
             .with_protocol(Protocol::HttpBinary)
             .with_timeout(Duration::from_secs(3))
             .build()?;
-        let otel_provider = SdkTracerProvider::builder()
-            .with_batch_exporter(otel_exporter)
+        let tracer_provider = SdkTracerProvider::builder()
+            .with_batch_exporter(span_exporter)
             .with_resource(
                 Resource::builder()
-                    .with_service_name(config::PROJECT_NAME.to_string())
+                    .with_service_name(env::PKG_NAME.to_string())
                     .build(),
             )
             .build();
-        let otel_tracer = otel_provider.tracer(&*config::PROJECT_NAME);
-        let otel_layer = tracing_opentelemetry::layer::<S>().with_tracer(otel_tracer);
+        let tracer = tracer_provider.tracer(&*env::PKG_NAME);
+        let layer = tracing_opentelemetry::layer::<S>().with_tracer(tracer);
 
-        Ok(otel_layer)
+        Ok(layer)
+    }
+
+    pub fn create_meter_layer<S>() -> Result<tracing_opentelemetry::MetricsLayer<S>>
+    where
+        S: Subscriber + for<'span> LookupSpan<'span>,
+    {
+        let otel_exporter = opentelemetry_otlp::MetricExporter::builder()
+            .with_http()
+            .with_protocol(Protocol::HttpBinary)
+            .with_timeout(Duration::from_secs(3))
+            .build()?;
+        let meter_provider = SdkMeterProvider::builder()
+            .with_periodic_exporter(otel_exporter)
+            .with_resource(
+                Resource::builder()
+                    .with_service_name(env::PKG_NAME.to_string())
+                    .build(),
+            )
+            .build();
+        let layer = tracing_opentelemetry::MetricsLayer::new(meter_provider);
+
+        Ok(layer)
     }
 }
 
@@ -117,7 +143,9 @@ where
     let subscriber = subscriber.with(ErrorLayer::default());
 
     #[cfg(feature = "opentelemetry")]
-    let subscriber = subscriber.with(self::opentelemetry::create_layer()?);
+    let subscriber = subscriber
+        .with(self::opentelemetry::create_tracer_layer()?)
+        .with(self::opentelemetry::create_meter_layer()?);
 
     #[cfg(feature = "tracy")]
     let subscriber = subscriber.with(self::tracy::create_layer()?);

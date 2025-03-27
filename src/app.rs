@@ -58,7 +58,7 @@ impl App {
 
     #[instrument]
     pub async fn run(&mut self) -> Result<()> {
-        let mut tui = Tui::new()?
+        let mut tui = Tui::new(tracing::Span::current())?
             // .mouse(true) // uncomment this line to enable mouse support
             .tick_rate(self.tick_rate)
             .frame_rate(self.frame_rate);
@@ -91,6 +91,7 @@ impl App {
         let action_tx = self.action_tx.clone();
         match event {
             Event::Quit => action_tx.send(Action::Quit)?,
+            // TODO: App could get overwhelmed by tick/render events/actions.
             Event::Tick => action_tx.send(Action::Tick)?,
             Event::Render => action_tx.send(Action::Render)?,
             Event::Resize(x, y) => action_tx.send(Action::Resize(x, y))?,

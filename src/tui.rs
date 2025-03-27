@@ -24,7 +24,7 @@ use tokio::{
     time::{interval, MissedTickBehavior},
 };
 use tokio_util::sync::CancellationToken;
-use tracing::error;
+use tracing::{error, Instrument};
 
 /// Backend-generated events.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -54,10 +54,12 @@ pub struct Tui {
     pub tick_rate: f64,
     pub mouse: bool,
     pub paste: bool,
+    /// A span that exists as long as the event loop.
+    pub parent_span: tracing::Span,
 }
 
 impl Tui {
-    pub fn new() -> Result<Self> {
+    pub fn new(parent_span: tracing::Span) -> Result<Self> {
         let (event_tx, event_rx) = mpsc::unbounded_channel();
         Ok(Self {
             terminal: ratatui::Terminal::new(Backend::new(stdout()))?,
@@ -69,6 +71,7 @@ impl Tui {
             tick_rate: 4.0,
             mouse: false,
             paste: false,
+            parent_span,
         })
     }
 
@@ -101,9 +104,12 @@ impl Tui {
             self.tick_rate,
             self.frame_rate,
         );
-        self.task = tokio::spawn(async {
-            event_loop.await;
-        });
+        self.task = tokio::spawn(
+            async {
+                event_loop.await;
+            }
+            .instrument(tracing::info_span!("test")),
+        );
     }
 
     async fn event_loop(
