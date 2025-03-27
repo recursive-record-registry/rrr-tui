@@ -1,16 +1,11 @@
 use std::{
-    borrow::Cow,
     fmt::Debug,
-    ops::{ControlFlow, Range},
-    sync::Arc,
+    ops::ControlFlow,
 };
 
 use color_eyre::Result;
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::{
     layout::{Direction, Layout, Rect},
-    style::{Color, Style, Stylize},
-    text::{Line, Span},
     Frame,
 };
 use tokio::sync::mpsc::UnboundedSender;

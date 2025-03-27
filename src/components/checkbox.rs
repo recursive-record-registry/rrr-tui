@@ -1,10 +1,10 @@
-use std::{borrow::Cow, ops::Range, sync::Arc};
+use std::borrow::Cow;
 
 use color_eyre::Result;
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
     layout::{Rect, Size},
-    style::{Color, Style, Stylize},
+    style::{Style, Stylize},
     text::{Line, Span},
     Frame,
 };

@@ -1,5 +1,4 @@
 use std::env::VarError;
-use std::time::Duration;
 
 use color_eyre::Result;
 use tracing::Subscriber;
@@ -17,14 +16,12 @@ lazy_static::lazy_static! {
 #[cfg(feature = "opentelemetry")]
 mod opentelemetry {
     use super::*;
-    use ::opentelemetry::logs::LoggerProvider;
-    use ::opentelemetry::metrics::Meter;
     use ::opentelemetry::trace::TracerProvider;
     use ::opentelemetry_otlp::{Protocol, WithExportConfig};
+    use ::opentelemetry_sdk::metrics::SdkMeterProvider;
     use ::opentelemetry_sdk::trace::SdkTracerProvider;
     use ::opentelemetry_sdk::Resource;
-    use opentelemetry_sdk::logs::SdkLoggerProvider;
-    use opentelemetry_sdk::metrics::SdkMeterProvider;
+    use ::std::time::Duration;
 
     pub fn create_tracer_layer<S>(
     ) -> Result<tracing_opentelemetry::OpenTelemetryLayer<S, opentelemetry_sdk::trace::Tracer>>

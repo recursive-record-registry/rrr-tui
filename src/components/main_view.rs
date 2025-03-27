@@ -1,21 +1,16 @@
 use std::fmt::Display;
 
-use accesskit::TreeUpdate;
 use color_eyre::eyre::Result;
 use ratatui::prelude::*;
-use ratatui::widgets::canvas::Label;
-use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table};
+use ratatui::widgets::{Block, Borders};
 use ratatui::Frame;
-use rrr::registry::Registry;
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::{debug, info};
 
 use crate::action::{Action, ComponentMessage};
 use crate::args::Args;
 use crate::env::PROJECT_VERSION;
 use crate::tui::Event;
 
-use super::checkbox::Checkbox;
 use super::input_field::InputField;
 use super::radio_array::RadioArray;
 use super::{Component, ComponentId};
@@ -122,11 +117,11 @@ impl MainView {
 }
 
 impl Component for MainView {
-    fn update(&mut self, message: ComponentMessage) -> Result<Option<crate::action::Action>> {
+    fn update(&mut self, _message: ComponentMessage) -> Result<Option<crate::action::Action>> {
         Ok(None)
     }
 
-    fn handle_event(&mut self, event: Event) -> Result<Option<crate::action::Action>> {
+    fn handle_event(&mut self, _event: Event) -> Result<Option<crate::action::Action>> {
         Ok(None)
     }
 
@@ -142,20 +137,20 @@ impl Component for MainView {
             end: symbols::line::HORIZONTAL,
             merged: symbols::line::HORIZONTAL,
         };
-        let spacer_horizontal_forked = LineSpacer {
-            direction: Direction::Horizontal,
-            begin: symbols::line::VERTICAL_RIGHT,
-            inner: symbols::line::HORIZONTAL,
-            end: symbols::line::VERTICAL_LEFT,
-            merged: symbols::line::VERTICAL,
-        };
-        let spacer_vertical = LineSpacer {
-            direction: Direction::Vertical,
-            begin: symbols::line::VERTICAL,
-            inner: symbols::line::VERTICAL,
-            end: symbols::line::VERTICAL,
-            merged: symbols::line::VERTICAL,
-        };
+        // let spacer_horizontal_forked = LineSpacer {
+        //     direction: Direction::Horizontal,
+        //     begin: symbols::line::VERTICAL_RIGHT,
+        //     inner: symbols::line::HORIZONTAL,
+        //     end: symbols::line::VERTICAL_LEFT,
+        //     merged: symbols::line::VERTICAL,
+        // };
+        // let spacer_vertical = LineSpacer {
+        //     direction: Direction::Vertical,
+        //     begin: symbols::line::VERTICAL,
+        //     inner: symbols::line::VERTICAL,
+        //     end: symbols::line::VERTICAL,
+        //     merged: symbols::line::VERTICAL,
+        // };
         let spacer_vertical_forked = LineSpacer {
             direction: Direction::Vertical,
             begin: symbols::line::HORIZONTAL_DOWN,
@@ -232,7 +227,7 @@ impl Component for MainView {
             .unwrap();
         frame.render_widget(Span::raw("Encoding"), area_encoding_label);
         self.encoding_radio_array
-            .draw(frame, area_encoding_field, focused_id);
+            .draw(frame, area_encoding_field, focused_id)?;
         // let [area_encoding_utf8, area_encoding_hex] = Layout::default()
         //     .direction(Direction::Horizontal)
         //     .spacing(2)

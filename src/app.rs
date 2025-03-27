@@ -186,7 +186,7 @@ impl App {
                     .copied()
                     .unwrap_or(self.root_component.get_id());
 
-                components::depth_first_search(
+                let _ = components::depth_first_search(
                     &*self.root_component,
                     &mut |component| -> ControlFlow<()> {
                         if component.is_focusable() {
@@ -263,7 +263,7 @@ impl App {
             }
 
             if let Some(component_message) = component_message {
-                components::depth_first_search_mut(
+                let _ = components::depth_first_search_mut(
                     &mut *self.root_component,
                     &mut |component| -> ControlFlow<()> {
                         if let Some(action) = component.update(component_message.clone()).unwrap() {

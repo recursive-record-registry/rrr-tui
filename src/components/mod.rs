@@ -1,13 +1,7 @@
-use std::{cell::RefCell, fmt::Debug, ops::ControlFlow, sync::atomic::AtomicU64};
+use std::{cell::RefCell, fmt::Debug, ops::ControlFlow};
 
 use color_eyre::Result;
-use crossterm::event::{KeyEvent, MouseEvent};
-use polonius_the_crab::{polonius, polonius_return};
-use ratatui::{
-    layout::{Rect, Size},
-    Frame,
-};
-use tokio::sync::mpsc::UnboundedSender;
+use ratatui::{layout::Rect, Frame};
 
 use crate::{
     action::{Action, ComponentMessage},
@@ -20,17 +14,10 @@ pub mod main_view;
 pub mod radio_array;
 
 mod id {
-    use std::{
-        ops::ControlFlow,
-        sync::atomic::{AtomicU64, Ordering},
-    };
+    use std::sync::atomic::{AtomicU64, Ordering};
 
     use derive_deref::{Deref, DerefMut};
-    use polonius_the_crab::{
-        exit_polonius, polonius, polonius_break_dependent, polonius_continue, polonius_loop,
-        polonius_return,
-        ඞ::cannot_use__polonius_break_dependentǃ__without_a_break_type_annotation_on__polonius_loopǃ,
-    };
+    use polonius_the_crab::{polonius_loop, polonius_return};
 
     use super::*;
 
@@ -38,6 +25,12 @@ mod id {
 
     #[derive(PartialEq, Eq, Clone, Copy, Debug, Hash)]
     pub struct ComponentId(u64);
+
+    impl Default for ComponentId {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
 
     impl ComponentId {
         pub fn root() -> Self {
@@ -181,7 +174,7 @@ pub fn for_each_child<'a, B: 'a>(
     mut f: impl FnMut(&'a dyn Component) -> ControlFlow<B>,
 ) -> Option<B> {
     let mut result = ControlFlow::Continue(());
-    component.for_each_child(&mut |component| {
+    let _ = component.for_each_child(&mut |component| {
         result = (f)(component);
         match &result {
             ControlFlow::Break(_) => ControlFlow::Break(()),
@@ -196,7 +189,7 @@ pub fn for_each_child_mut<'a, B: 'a>(
     mut f: impl FnMut(&'a mut dyn Component) -> ControlFlow<B>,
 ) -> Option<B> {
     let mut result = ControlFlow::Continue(());
-    component.for_each_child_mut(&mut |component| {
+    let _ = component.for_each_child_mut(&mut |component| {
         result = (f)(component);
         match &result {
             ControlFlow::Break(_) => ControlFlow::Break(()),
@@ -206,10 +199,10 @@ pub fn for_each_child_mut<'a, B: 'a>(
     result.break_value()
 }
 
-pub fn find_child_by_id<'a>(
-    component: &'a dyn Component,
+pub fn find_child_by_id(
+    component: &dyn Component,
     child_id: ComponentId,
-) -> Option<&'a dyn Component> {
+) -> Option<&dyn Component> {
     for_each_child(component, |child| {
         if child.is_focusable() && child.get_id() == child_id {
             ControlFlow::Break(child)
@@ -219,10 +212,10 @@ pub fn find_child_by_id<'a>(
     })
 }
 
-pub fn find_child_by_id_mut<'a>(
-    component: &'a mut dyn Component,
+pub fn find_child_by_id_mut(
+    component: &mut dyn Component,
     child_id: ComponentId,
-) -> Option<&'a mut dyn Component> {
+) -> Option<&mut dyn Component> {
     for_each_child_mut(component, |child| {
         if child.is_focusable() && child.get_id() == child_id {
             ControlFlow::Break(child)
@@ -282,7 +275,7 @@ pub fn find_component_by_id_mut(
             }
             ControlFlow::Continue(())
         },
-        &mut |component| {
+        &mut |_| {
             path.borrow_mut().pop();
             ControlFlow::Continue(())
         },

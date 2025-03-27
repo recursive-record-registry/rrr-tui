@@ -1,4 +1,3 @@
-use serde::{Deserialize, Serialize};
 use strum::Display;
 
 use crate::components::ComponentId;
@@ -24,8 +23,6 @@ pub enum Action {
     Resume,
     Quit,
     ClearScreen,
-    Error(String),
-    Help,
     FocusChange(FocusChange),
     /// Send a message to all other components.
     BroadcastMessage(ComponentMessage),
