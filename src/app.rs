@@ -31,7 +31,7 @@ pub struct App {
 
 impl App {
     #[instrument]
-    pub fn new(args: Args) -> Result<Self> {
+    pub async fn new(args: Args) -> Result<Self> {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
         let mut app = Self {
             tick_rate: args.tick_rate,
@@ -39,7 +39,7 @@ impl App {
             should_quit: false,
             should_suspend: false,
             last_tick_key_events: Vec::new(),
-            root_component: Box::new(MainView::new(ComponentId::root(), &action_tx, &args)),
+            root_component: Box::new(MainView::new(ComponentId::root(), &action_tx, &args).await?),
             focus_path: Default::default(),
             action_tx,
             action_rx,

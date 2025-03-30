@@ -10,6 +10,7 @@ use crate::app::App;
 mod action;
 mod app;
 mod args;
+mod cbor;
 mod components;
 mod env;
 mod errors;
@@ -23,7 +24,7 @@ async fn main() -> Result<()> {
 
     async move {
         let args = Args::parse();
-        let mut app = App::new(args)?;
+        let mut app = App::new(args).await?;
         app.run().await?;
         Ok(()) as Result<()>
     }

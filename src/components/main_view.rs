@@ -1,12 +1,13 @@
 use std::fmt::Display;
 
-use color_eyre::eyre::Result;
+use color_eyre::eyre::{eyre, Result};
 use ratatui::prelude::*;
-use ratatui::widgets::{Block, Borders};
+use ratatui::widgets::Table;
 use ratatui::Frame;
+use rrr::record::{HashRecordPath, RecordPath, RecordReadVersionSuccess};
 use rrr::registry::Registry;
+use rrr::utils::fd_lock::ReadLock;
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::{info_span, Instrument};
 
 use crate::action::{Action, ComponentMessage};
 use crate::args::Args;
@@ -88,26 +89,49 @@ impl Display for Encoding {
 }
 
 #[derive(Debug)]
+struct OpenedRecord {
+    record: RecordReadVersionSuccess,
+}
+
+#[derive(Debug)]
 pub struct MainView {
     id: ComponentId,
     record_name_field: InputField,
     encoding_radio_array: RadioArray<Encoding>,
+    registry: Registry<ReadLock>,
+    opened_record: OpenedRecord,
 }
 
 impl MainView {
-    pub fn new(id: ComponentId, tx: &UnboundedSender<Action>, args: &Args) -> Self
+    pub async fn new(id: ComponentId, tx: &UnboundedSender<Action>, args: &Args) -> Result<Self>
     where
         Self: Sized,
     {
-        let args = args.clone();
-        tokio::spawn(
-            async move {
-                tracing::trace!(dir=?args.registry_directory);
-                let result = Registry::open(args.registry_directory).await.unwrap();
-            }
-            .instrument(info_span!("load registry task")),
-        );
-        Self {
+        tracing::trace!(dir=?args.registry_directory);
+        let registry = Registry::open(args.registry_directory.clone())
+            .await
+            .unwrap();
+        // tokio::spawn(
+        //     async move {
+        // }
+        //     .instrument(info_span!("load registry task")),
+        // );
+        let hashed_record_key = RecordPath::default()
+            .hash_record_path(&registry)
+            .await
+            .unwrap();
+        let versions = registry
+            .list_record_versions(&hashed_record_key, 4, 4)
+            .await
+            .unwrap();
+        let latest_version = versions
+            .last()
+            .ok_or_else(|| eyre!("No root record versions found."))?;
+        let root_record = registry
+            .load_record(&hashed_record_key, latest_version.record_version, 4)
+            .await?
+            .ok_or_else(|| eyre!("Failed to load the latest root record version."))?;
+        Ok(Self {
             id,
             record_name_field: InputField::new(ComponentId::new(), tx),
             encoding_radio_array: RadioArray::new(
@@ -117,103 +141,111 @@ impl MainView {
                 &Encoding::Utf8,
                 Direction::Horizontal,
             ),
-        }
-    }
-}
-
-impl Component for MainView {
-    fn update(&mut self, _message: ComponentMessage) -> Result<Option<crate::action::Action>> {
-        Ok(None)
+            registry,
+            opened_record: OpenedRecord {
+                record: root_record,
+            },
+        })
     }
 
-    fn handle_event(&mut self, _event: Event) -> Result<Option<crate::action::Action>> {
-        Ok(None)
-    }
-
-    fn is_focusable(&self) -> bool {
-        false
-    }
-
-    fn draw(&self, frame: &mut Frame, area: Rect, focused_id: ComponentId) -> Result<()> {
-        let spacer_horizontal = LineSpacer {
-            direction: Direction::Horizontal,
-            begin: symbols::line::HORIZONTAL,
-            inner: symbols::line::HORIZONTAL,
-            end: symbols::line::HORIZONTAL,
-            merged: symbols::line::HORIZONTAL,
-        };
-        // let spacer_horizontal_forked = LineSpacer {
-        //     direction: Direction::Horizontal,
-        //     begin: symbols::line::VERTICAL_RIGHT,
-        //     inner: symbols::line::HORIZONTAL,
-        //     end: symbols::line::VERTICAL_LEFT,
-        //     merged: symbols::line::VERTICAL,
-        // };
-        // let spacer_vertical = LineSpacer {
-        //     direction: Direction::Vertical,
-        //     begin: symbols::line::VERTICAL,
-        //     inner: symbols::line::VERTICAL,
-        //     end: symbols::line::VERTICAL,
-        //     merged: symbols::line::VERTICAL,
-        // };
-        let spacer_vertical_forked = LineSpacer {
-            direction: Direction::Vertical,
-            begin: symbols::line::HORIZONTAL_DOWN,
-            inner: symbols::line::VERTICAL,
-            end: symbols::line::HORIZONTAL_UP,
-            merged: symbols::line::HORIZONTAL,
-        };
-        let block_horizontal = Block::new().borders(Borders::TOP | Borders::BOTTOM);
-        let layout = Layout::default()
+    fn pane_areas(area: Rect, title_offset_x: u16) -> (Rect, Rect) {
+        let [mut title, content] = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(1),
-                Constraint::Length(7),
-                Constraint::Fill(1),
-                Constraint::Length(1),
-                Constraint::Length(2),
-                Constraint::Length(1),
-            ]);
-        let [area_header, area_top, area_content, area_bottom_spacer, area_bottom, area_footer] =
-            layout.areas(area);
-        let layout_top = Layout::default()
-            .direction(Direction::Horizontal)
-            .spacing(1)
-            .constraints([
-                Constraint::Length(8),
-                Constraint::Fill(1),
-                Constraint::Length(16),
-            ]);
-        let [area_tree, area_metadata, area_overview] = layout_top.areas(area_top);
-        let [_, area_top_spacer_0, area_top_spacer_1, _] = layout_top.spacers(area_top);
-        let area_content_title = Rect {
-            x: area_metadata.x,
-            y: (area_top.y + area_top.height).saturating_sub(1),
-            width: area_top.width.saturating_sub(area_metadata.x),
-            height: 1,
-        };
-        let area_bottom_title = Rect {
-            y: area_bottom_spacer.y,
-            ..area_content_title
-        };
+            .constraints([Constraint::Length(1), Constraint::Fill(1)])
+            .areas(area);
 
-        frame.render_widget(spacer_vertical_forked.clone(), area_top_spacer_0);
-        frame.render_widget(spacer_vertical_forked.clone(), area_top_spacer_1);
-        frame.render_widget(spacer_horizontal.clone(), area_footer);
-        frame.render_widget(spacer_horizontal.clone(), area_bottom_spacer);
-        frame.render_widget(block_horizontal.clone().title("[T]ree"), area_tree);
-        frame.render_widget(
-            block_horizontal.clone().title("Record [M]etadata"),
-            area_metadata,
-        );
-        frame.render_widget(block_horizontal.clone().title("[O]verview"), area_overview);
-        frame.render_widget(Span::raw("Record [C]ontent"), area_content_title);
-        frame.render_widget(Span::raw("Open Sub-Record [Enter]"), area_bottom_title);
+        title.x += title_offset_x;
+        title.width = title.width.saturating_sub(title_offset_x);
+
+        (title, content)
+    }
+
+    fn draw_header(
+        &self,
+        frame: &mut Frame,
+        area_header: Rect,
+        _focused_id: ComponentId,
+    ) -> Result<()> {
         frame.render_widget(
             Span::raw(format!("RRR TUI v{}", *PROJECT_VERSION)),
             area_header,
         );
-        frame.render_widget(Text::raw("Lorem ipsum dolor sit amet…"), area_content);
+        Ok(())
+    }
+
+    fn draw_pane_tree(
+        &self,
+        frame: &mut Frame,
+        area: Rect,
+        _focused_id: ComponentId,
+    ) -> Result<()> {
+        let (area_title, _area_content) = Self::pane_areas(area, 0);
+        frame.render_widget(Span::raw("[T]ree"), area_title);
+        Ok(())
+    }
+
+    fn draw_pane_metadata(
+        &self,
+        frame: &mut Frame,
+        area: Rect,
+        _focused_id: ComponentId,
+    ) -> Result<()> {
+        let (area_title, area_content) = Self::pane_areas(area, 0);
+        let metadata_table = Table::new(
+            self.opened_record
+                .record
+                .metadata
+                .iter_with_semantic_keys()
+                .map(|(key, value)| crate::cbor::record_metadata_to_row(key, value)),
+            [Constraint::Length(16), Constraint::Fill(1)],
+        );
+
+        frame.render_widget(Span::raw("Record [M]etadata"), area_title);
+        frame.render_widget(metadata_table, area_content);
+
+        Ok(())
+    }
+
+    fn draw_pane_overview(
+        &self,
+        frame: &mut Frame,
+        area: Rect,
+        _focused_id: ComponentId,
+    ) -> Result<()> {
+        let (area_title, _area_content) = Self::pane_areas(area, 0);
+        frame.render_widget(Span::raw("[O]verview"), area_title);
+        Ok(())
+    }
+
+    fn draw_pane_content(
+        &self,
+        frame: &mut Frame,
+        area: Rect,
+        _focused_id: ComponentId,
+        title_offset_x: u16,
+    ) -> Result<()> {
+        let (area_title, area_content) = Self::pane_areas(area, title_offset_x);
+
+        frame.render_widget(Span::raw("Record [C]ontent"), area_title);
+        frame.render_widget(
+            Text::raw(String::from_utf8_lossy(&self.opened_record.record.data)),
+            area_content,
+        );
+
+        Ok(())
+    }
+
+    fn draw_pane_open(
+        &self,
+        frame: &mut Frame,
+        area: Rect,
+        focused_id: ComponentId,
+        title_offset_x: u16,
+    ) -> Result<()> {
+        let (area_title, area_content) = Self::pane_areas(area, title_offset_x);
+
+        frame.render_widget(Span::raw("Open Sub-Record [Enter]"), area_title);
+
         let layout_bottom_lines = Layout::default()
             .direction(Direction::Horizontal)
             .spacing(1)
@@ -221,7 +253,7 @@ impl Component for MainView {
         let [area_record_name, area_encoding] = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Length(1), Constraint::Length(1)])
-            .areas(area_bottom);
+            .areas(area_content);
         let [area_record_name_label, area_record_name_field] =
             layout_bottom_lines.areas(area_record_name);
         let [area_encoding_label, area_encoding_field] = layout_bottom_lines.areas(area_encoding);
@@ -244,6 +276,84 @@ impl Component for MainView {
         // self.encoding_hex_checkbox
         //     .draw(frame, area_encoding_hex, focused_id)
         //     .unwrap();
+        Ok(())
+    }
+}
+
+impl Component for MainView {
+    fn update(&mut self, _message: ComponentMessage) -> Result<Option<crate::action::Action>> {
+        Ok(None)
+    }
+
+    fn handle_event(&mut self, _event: Event) -> Result<Option<crate::action::Action>> {
+        Ok(None)
+    }
+
+    fn is_focusable(&self) -> bool {
+        false
+    }
+
+    fn draw(&self, frame: &mut Frame, area: Rect, focused_id: ComponentId) -> Result<()> {
+        const SPACER_HORIZONTAL: LineSpacer = LineSpacer {
+            direction: Direction::Horizontal,
+            begin: symbols::line::HORIZONTAL,
+            inner: symbols::line::HORIZONTAL,
+            end: symbols::line::HORIZONTAL,
+            merged: symbols::line::HORIZONTAL,
+        };
+        const SPACER_VERTICAL_FORKED: LineSpacer = LineSpacer {
+            direction: Direction::Vertical,
+            begin: symbols::line::HORIZONTAL_DOWN,
+            inner: symbols::line::VERTICAL,
+            end: symbols::line::HORIZONTAL_UP,
+            merged: symbols::line::HORIZONTAL,
+        };
+        let [area_header, area_top, area_content, area_bottom, area_footer] = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(1),
+                Constraint::Length(7),
+                Constraint::Fill(1),
+                Constraint::Length(3),
+                Constraint::Length(1),
+            ])
+            .areas(area);
+        let layout_top = Layout::default()
+            .direction(Direction::Horizontal)
+            .spacing(1)
+            .constraints([
+                Constraint::Length(8),
+                Constraint::Fill(1),
+                Constraint::Length(16),
+            ]);
+        let [area_tree, area_metadata, area_overview] = layout_top.areas(area_top);
+        let [_, area_top_spacer_0, area_top_spacer_1, _] = layout_top.spacers(area_top);
+
+        frame.render_widget(SPACER_HORIZONTAL.clone(), area_top);
+        frame.render_widget(SPACER_HORIZONTAL.clone(), area_content);
+        frame.render_widget(SPACER_HORIZONTAL.clone(), area_bottom);
+        frame.render_widget(SPACER_HORIZONTAL.clone(), area_footer);
+        frame.render_widget(
+            SPACER_VERTICAL_FORKED.clone(),
+            Rect {
+                height: area_top_spacer_0.height + 1,
+                ..area_top_spacer_0
+            },
+        );
+        frame.render_widget(
+            SPACER_VERTICAL_FORKED.clone(),
+            Rect {
+                height: area_top_spacer_1.height + 1,
+                ..area_top_spacer_1
+            },
+        );
+
+        self.draw_pane_tree(frame, area_tree, focused_id)?;
+        self.draw_pane_metadata(frame, area_metadata, focused_id)?;
+        self.draw_pane_overview(frame, area_overview, focused_id)?;
+        self.draw_pane_content(frame, area_content, focused_id, area_metadata.x)?;
+        self.draw_pane_open(frame, area_bottom, focused_id, area_metadata.x)?;
+        self.draw_header(frame, area_header, focused_id)?;
 
         Ok(())
     }
