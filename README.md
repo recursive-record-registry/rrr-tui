@@ -4,7 +4,11 @@
 
 RRR TUI
 
-# Debugging
-Necessary for debugging using CodeLLDB in VSCode.
-See: https://github.com/vadimcn/codelldb/wiki/Windows
-nightly-x86_64-pc-windows-gnu
+## TODO
+* [ ] Record opening
+    * [ ] Form handling
+        * [x] Bottom-up event propagation until absorbed
+        * [ ] Form component
+    * [ ] Progress bar / async task?
+        * [ ] Async loading of root record
+* [ ] Scrollable pane component

@@ -110,11 +110,62 @@ mod id {
 
             (node, Self(self.0[..depth].into()))
         }
+
+        pub fn for_each_component_mut<B>(
+            &self,
+            root: &mut dyn super::Component,
+            visit_preorder: &mut impl FnMut(&mut dyn Component) -> ControlFlow<B>,
+            visit_postorder: &mut impl FnMut(&mut dyn Component) -> ControlFlow<B>,
+        ) -> ControlFlow<B> {
+            (visit_preorder)(root)?;
+
+            if let Some((head, tail)) = self.0.split_first() {
+                for child in root.get_children_mut() {
+                    if child.get_id() == *head {
+                        Self(tail.into()).for_each_component_mut(
+                            child,
+                            visit_preorder,
+                            visit_postorder,
+                        )?;
+                    }
+                }
+            }
+
+            (visit_postorder)(root)?;
+            ControlFlow::Continue(())
+        }
     }
 }
 
 pub use id::ComponentId;
 pub use id::ComponentIdPath;
+
+#[derive(Default)]
+pub struct HandleEventSuccess {
+    pub action: Option<Action>,
+    /// `true` if the event should not be propagated upwards toward the root.
+    pub absorb: bool,
+}
+
+impl HandleEventSuccess {
+    pub fn unhandled() -> Self {
+        Default::default()
+    }
+
+    pub fn handled() -> Self {
+        Self {
+            action: None,
+            absorb: true,
+        }
+    }
+
+    pub fn with_action(self, action: Action) -> Self {
+        Self {
+            action: Some(action),
+            ..self
+        }
+    }
+}
 
 /// `Component` is a trait that represents a visual and interactive element of the user interface.
 ///
@@ -122,7 +173,7 @@ pub use id::ComponentIdPath;
 /// receive events, update state, and be rendered on the screen.
 pub trait Component: Debug {
     /// Handle events when focused.
-    fn handle_event(&mut self, event: Event) -> Result<Option<Action>>;
+    fn handle_event(&mut self, event: &Event) -> Result<HandleEventSuccess>;
 
     fn update(&mut self, message: ComponentMessage) -> Result<Option<Action>>;
 

@@ -16,7 +16,7 @@ use crate::tui::Event;
 
 use super::input_field::InputField;
 use super::radio_array::RadioArray;
-use super::{Component, ComponentId};
+use super::{Component, ComponentId, HandleEventSuccess};
 
 #[derive(Clone)]
 pub struct LineSpacer {
@@ -285,8 +285,8 @@ impl Component for MainView {
         Ok(None)
     }
 
-    fn handle_event(&mut self, _event: Event) -> Result<Option<crate::action::Action>> {
-        Ok(None)
+    fn handle_event(&mut self, _event: &Event) -> Result<HandleEventSuccess> {
+        Ok(HandleEventSuccess::unhandled())
     }
 
     fn is_focusable(&self) -> bool {

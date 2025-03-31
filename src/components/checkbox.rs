@@ -10,7 +10,7 @@ use ratatui::{
 };
 use tokio::sync::mpsc::UnboundedSender;
 
-use super::{Component, ComponentId};
+use super::{Component, ComponentId, HandleEventSuccess};
 
 use crate::{
     action::{Action, ComponentMessage},
@@ -80,7 +80,7 @@ impl Component for Checkbox {
         Ok(None)
     }
 
-    fn handle_event(&mut self, event: Event) -> Result<Option<Action>> {
+    fn handle_event(&mut self, event: &Event) -> Result<HandleEventSuccess> {
         Ok(match event {
             Event::Key(KeyEvent {
                 code: KeyCode::Char(' '),
@@ -94,9 +94,9 @@ impl Component for Checkbox {
                         new_value: self.checked,
                     },
                 ))?;
-                Some(Action::Render)
+                HandleEventSuccess::handled().with_action(Action::Render)
             }
-            _ => None,
+            _ => HandleEventSuccess::unhandled(),
         })
     }
 

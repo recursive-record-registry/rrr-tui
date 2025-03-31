@@ -1,7 +1,4 @@
-use std::{
-    fmt::Debug,
-    ops::ControlFlow,
-};
+use std::{fmt::Debug, ops::ControlFlow};
 
 use color_eyre::Result;
 use ratatui::{
@@ -10,7 +7,7 @@ use ratatui::{
 };
 use tokio::sync::mpsc::UnboundedSender;
 
-use super::{checkbox::Checkbox, Component, ComponentId};
+use super::{checkbox::Checkbox, Component, ComponentId, HandleEventSuccess};
 
 use crate::{
     action::{Action, ComponentMessage},
@@ -98,8 +95,8 @@ where
         })
     }
 
-    fn handle_event(&mut self, event: Event) -> Result<Option<Action>> {
-        Ok(None)
+    fn handle_event(&mut self, event: &Event) -> Result<HandleEventSuccess> {
+        Ok(HandleEventSuccess::unhandled())
     }
 
     fn draw(&self, frame: &mut Frame, area: Rect, focused_id: ComponentId) -> Result<()> {

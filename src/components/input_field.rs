@@ -10,7 +10,7 @@ use ratatui::{
 };
 use tokio::sync::mpsc::UnboundedSender;
 
-use super::{Component, ComponentId};
+use super::{Component, ComponentId, HandleEventSuccess};
 
 use crate::{
     action::{Action, ComponentMessage},
@@ -179,7 +179,7 @@ impl Component for InputField {
         Ok(None)
     }
 
-    fn handle_event(&mut self, event: Event) -> Result<Option<Action>> {
+    fn handle_event(&mut self, event: &Event) -> Result<HandleEventSuccess> {
         Ok(match event {
             Event::Key(KeyEvent {
                 code: KeyCode::Char(character),
@@ -188,7 +188,7 @@ impl Component for InputField {
             }) => {
                 let string = character.to_string();
                 self.insert(&string);
-                Some(Action::Render)
+                HandleEventSuccess::handled().with_action(Action::Render)
             }
             Event::Key(KeyEvent {
                 code: KeyCode::Backspace,
@@ -196,7 +196,7 @@ impl Component for InputField {
                 ..
             }) => {
                 self.remove(RemoveKeyCode::Backspace);
-                Some(Action::Render)
+                HandleEventSuccess::handled().with_action(Action::Render)
             }
             Event::Key(KeyEvent {
                 code: KeyCode::Delete,
@@ -204,7 +204,7 @@ impl Component for InputField {
                 ..
             }) => {
                 self.remove(RemoveKeyCode::Delete);
-                Some(Action::Render)
+                HandleEventSuccess::handled().with_action(Action::Render)
             }
             Event::Key(KeyEvent {
                 code: code @ (KeyCode::Left | KeyCode::Right),
@@ -214,7 +214,7 @@ impl Component for InputField {
             }) => {
                 if modifiers.contains(KeyModifiers::SHIFT) {
                     let direction =
-                        CursorMoveDirection::try_from(code).unwrap_or_else(|()| unreachable!());
+                        CursorMoveDirection::try_from(*code).unwrap_or_else(|()| unreachable!());
 
                     if let Some(new_position) =
                         self.get_move_cursor_position(self.cursor.end, direction)
@@ -225,8 +225,8 @@ impl Component for InputField {
                     let minmax = self.cursor.minmax();
 
                     if minmax.is_empty() {
-                        let direction =
-                            CursorMoveDirection::try_from(code).unwrap_or_else(|()| unreachable!());
+                        let direction = CursorMoveDirection::try_from(*code)
+                            .unwrap_or_else(|()| unreachable!());
 
                         if let Some(new_position) =
                             self.get_move_cursor_position(minmax.start, direction)
@@ -242,20 +242,20 @@ impl Component for InputField {
                     }
                 }
 
-                Some(Action::Render)
+                HandleEventSuccess::handled().with_action(Action::Render)
             }
             Event::Paste(paste_string) => {
                 self.insert(&paste_string);
-                Some(Action::Render)
+                HandleEventSuccess::handled().with_action(Action::Render)
             }
             Event::FocusGained => {
                 self.cursor = Cursor {
                     start: 0,
                     end: self.content.len(),
                 };
-                Some(Action::Render)
+                HandleEventSuccess::handled().with_action(Action::Render)
             }
-            _ => None,
+            _ => HandleEventSuccess::unhandled(),
         })
     }
 

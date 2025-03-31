@@ -11,7 +11,7 @@ use crate::{
     args::Args,
     components::{
         self, find_component_by_id_mut, main_view::MainView, Component, ComponentId,
-        ComponentIdPath,
+        ComponentIdPath, HandleEventSuccess,
     },
     tui::{Event, Tui},
 };
@@ -98,10 +98,35 @@ impl App {
             Event::Key(key) => self.handle_key_event(key)?,
             _ => {}
         }
-        let (focused_component, _) = self
-            .focus_path
-            .find_deepest_available_component_mut(&mut *self.root_component);
-        focused_component.handle_event(event)?;
+
+        self.focus_path
+            .for_each_component_mut::<Result<()>>(
+                &mut *self.root_component,
+                &mut |_| ControlFlow::Continue(()),
+                &mut |focused_component| -> ControlFlow<Result<()>, ()> {
+                    match focused_component.handle_event(&event) {
+                        Ok(HandleEventSuccess { action, absorb }) => {
+                            if let Some(action) = action {
+                                action_tx.send(action).unwrap();
+                            }
+
+                            if absorb {
+                                ControlFlow::Break(Ok(()))
+                            } else {
+                                ControlFlow::Continue(())
+                            }
+                        }
+                        Err(error) => ControlFlow::Break(Err(error)),
+                    }
+                },
+            )
+            .break_value()
+            .transpose()?;
+
+        // let (focused_component, _) = self
+        //     .focus_path
+        //     .find_deepest_available_component_mut(&mut *self.root_component);
+        // focused_component.handle_event(event)?;
         // components::depth_first_search_mut(
         //     &mut *self.root_component,
         //     &mut |component| {
@@ -179,7 +204,7 @@ impl App {
                     .focus_path
                     .find_deepest_available_component_mut(&mut *self.root_component);
 
-                originally_selected_component.handle_event(Event::FocusLost)?;
+                originally_selected_component.handle_event(&Event::FocusLost)?;
 
                 let deepest_available_id = deepest_available_path
                     .last()
@@ -230,7 +255,7 @@ impl App {
                     )
                     .unwrap();
                     self.focus_path = focus_path;
-                    newly_selected_component.handle_event(Event::FocusGained)?;
+                    newly_selected_component.handle_event(&Event::FocusGained)?;
                     tracing::debug!(focus_path=?self.focus_path, "Focus changed.");
                 }
             }
