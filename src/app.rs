@@ -11,7 +11,7 @@ use crate::{
     args::Args,
     components::{
         self, find_component_by_id_mut, main_view::MainView, Component, ComponentId,
-        ComponentIdPath, HandleEventSuccess,
+        ComponentIdPath, DefaultDrawableComponent, HandleEventSuccess,
     },
     tui::{Event, Tui},
 };
@@ -25,7 +25,7 @@ pub struct App {
     last_tick_key_events: Vec<KeyEvent>,
     action_tx: mpsc::UnboundedSender<Action>,
     action_rx: mpsc::UnboundedReceiver<Action>,
-    root_component: Box<dyn Component>,
+    root_component: Box<dyn DefaultDrawableComponent>,
     focus_path: ComponentIdPath,
 }
 
@@ -314,9 +314,11 @@ impl App {
     fn render(&mut self, tui: &mut Tui) -> Result<()> {
         let mut result = Ok(());
         tui.draw(|frame| {
-            result = self
-                .root_component
-                .draw(frame, frame.area(), self.get_focused_component_id());
+            result = self.root_component.default_draw(
+                frame,
+                frame.area(),
+                self.get_focused_component_id(),
+            );
         })?;
         result
     }

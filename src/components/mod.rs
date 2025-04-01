@@ -177,8 +177,6 @@ pub trait Component: Debug {
 
     fn update(&mut self, message: ComponentMessage) -> Result<Option<Action>>;
 
-    fn draw(&self, frame: &mut Frame, area: Rect, focused_id: ComponentId) -> Result<()>;
-
     /// Returns the immutable unique ID of this component's instance.
     fn get_id(&self) -> ComponentId;
 
@@ -217,6 +215,41 @@ pub trait Component: Debug {
         ControlFlow::Continue(())
     }
 }
+
+/// A drawable element (usually a `Component`).
+pub trait Drawable {
+    type Args<'a>
+    where
+        Self: 'a;
+
+    fn draw<'a>(
+        &self,
+        frame: &mut Frame,
+        area: Rect,
+        focused_id: ComponentId,
+        extra_args: Self::Args<'a>,
+    ) -> Result<()>
+    where
+        Self: 'a;
+}
+
+/// A drawable element that takes no extra arguments for drawing.
+pub trait DefaultDrawable {
+    fn default_draw(&self, frame: &mut Frame, area: Rect, focused_id: ComponentId) -> Result<()>;
+}
+
+impl<T> DefaultDrawable for T
+where
+    T: Drawable,
+    for<'a> <T as Drawable>::Args<'a>: Default,
+{
+    fn default_draw(&self, frame: &mut Frame, area: Rect, focused_id: ComponentId) -> Result<()> {
+        self.draw(frame, area, focused_id, Default::default())
+    }
+}
+
+pub trait DefaultDrawableComponent: DefaultDrawable + Component {}
+impl<T> DefaultDrawableComponent for T where T: DefaultDrawable + Component {}
 
 // Standalone generic functions folľow, because they cannot be on trait objects.
 

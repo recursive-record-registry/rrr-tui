@@ -7,7 +7,7 @@ use ratatui::{
 };
 use tokio::sync::mpsc::UnboundedSender;
 
-use super::{checkbox::Checkbox, Component, ComponentId, HandleEventSuccess};
+use super::{checkbox::Checkbox, Component, ComponentId, Drawable, HandleEventSuccess};
 
 use crate::{
     action::{Action, ComponentMessage},
@@ -99,34 +99,6 @@ where
         Ok(HandleEventSuccess::unhandled())
     }
 
-    fn draw(&self, frame: &mut Frame, area: Rect, focused_id: ComponentId) -> Result<()> {
-        if area.area() == 0 {
-            return Ok(());
-        }
-
-        let (areas, _) = Layout::new(
-            self.layout_direction,
-            self.items.iter().map(|(_, checkbox)| {
-                let size = checkbox.size();
-                match self.layout_direction {
-                    Direction::Horizontal => size.width,
-                    Direction::Vertical => size.height,
-                }
-            }),
-        )
-        .spacing(match self.layout_direction {
-            Direction::Horizontal => 2,
-            Direction::Vertical => 0,
-        })
-        .split_with_spacers(area);
-
-        for ((_, checkbox), checkbox_area) in self.items.iter().zip(areas.iter()) {
-            checkbox.draw(frame, *checkbox_area, focused_id)?;
-        }
-
-        Ok(())
-    }
-
     fn get_id(&self) -> ComponentId {
         self.id
     }
@@ -169,5 +141,52 @@ where
 
     fn get_accessibility_node(&self) -> Result<accesskit::Node> {
         todo!()
+    }
+}
+
+impl<T> Drawable for RadioArray<T>
+where
+    T: ToString + Clone + PartialEq + Debug,
+{
+    type Args<'a>
+        = ()
+    where
+        Self: 'a;
+
+    fn draw<'a>(
+        &self,
+        frame: &mut Frame,
+        area: Rect,
+        focused_id: ComponentId,
+        (): Self::Args<'a>,
+    ) -> Result<()>
+    where
+        Self: 'a,
+    {
+        if area.area() == 0 {
+            return Ok(());
+        }
+
+        let (areas, _) = Layout::new(
+            self.layout_direction,
+            self.items.iter().map(|(_, checkbox)| {
+                let size = checkbox.size();
+                match self.layout_direction {
+                    Direction::Horizontal => size.width,
+                    Direction::Vertical => size.height,
+                }
+            }),
+        )
+        .spacing(match self.layout_direction {
+            Direction::Horizontal => 2,
+            Direction::Vertical => 0,
+        })
+        .split_with_spacers(area);
+
+        for ((_, checkbox), checkbox_area) in self.items.iter().zip(areas.iter()) {
+            checkbox.draw(frame, *checkbox_area, focused_id, ())?;
+        }
+
+        Ok(())
     }
 }

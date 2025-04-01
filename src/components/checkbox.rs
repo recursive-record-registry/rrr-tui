@@ -10,7 +10,7 @@ use ratatui::{
 };
 use tokio::sync::mpsc::UnboundedSender;
 
-use super::{Component, ComponentId, HandleEventSuccess};
+use super::{Component, ComponentId, Drawable, HandleEventSuccess};
 
 use crate::{
     action::{Action, ComponentMessage},
@@ -100,7 +100,31 @@ impl Component for Checkbox {
         })
     }
 
-    fn draw(&self, frame: &mut Frame, mut area: Rect, focused_id: ComponentId) -> Result<()> {
+    fn get_id(&self) -> ComponentId {
+        self.id
+    }
+
+    fn get_accessibility_node(&self) -> Result<accesskit::Node> {
+        todo!()
+    }
+}
+
+impl Drawable for Checkbox {
+    type Args<'a>
+        = ()
+    where
+        Self: 'a;
+
+    fn draw<'a>(
+        &self,
+        frame: &mut Frame,
+        mut area: Rect,
+        focused_id: ComponentId,
+        (): Self::Args<'a>,
+    ) -> Result<()>
+    where
+        Self: 'a,
+    {
         if area.area() == 0 {
             return Ok(());
         }
@@ -126,13 +150,5 @@ impl Component for Checkbox {
         frame.render_widget(Line::from_iter(spans), area);
 
         Ok(())
-    }
-
-    fn get_id(&self) -> ComponentId {
-        self.id
-    }
-
-    fn get_accessibility_node(&self) -> Result<accesskit::Node> {
-        todo!()
     }
 }

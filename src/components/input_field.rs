@@ -10,7 +10,7 @@ use ratatui::{
 };
 use tokio::sync::mpsc::UnboundedSender;
 
-use super::{Component, ComponentId, HandleEventSuccess};
+use super::{Component, ComponentId, Drawable, HandleEventSuccess};
 
 use crate::{
     action::{Action, ComponentMessage},
@@ -259,7 +259,31 @@ impl Component for InputField {
         })
     }
 
-    fn draw(&self, frame: &mut Frame, mut area: Rect, focused_id: ComponentId) -> Result<()> {
+    fn get_id(&self) -> ComponentId {
+        self.id
+    }
+
+    fn get_accessibility_node(&self) -> Result<accesskit::Node> {
+        todo!()
+    }
+}
+
+impl Drawable for InputField {
+    type Args<'a>
+        = ()
+    where
+        Self: 'a;
+
+    fn draw<'a>(
+        &self,
+        frame: &mut Frame,
+        mut area: Rect,
+        focused_id: ComponentId,
+        (): Self::Args<'a>,
+    ) -> Result<()>
+    where
+        Self: 'a,
+    {
         if area.area() == 0 {
             return Ok(());
         }
@@ -301,13 +325,5 @@ impl Component for InputField {
         }
 
         Ok(())
-    }
-
-    fn get_id(&self) -> ComponentId {
-        self.id
-    }
-
-    fn get_accessibility_node(&self) -> Result<accesskit::Node> {
-        todo!()
     }
 }

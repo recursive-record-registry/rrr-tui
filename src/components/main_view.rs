@@ -1,6 +1,7 @@
 use std::fmt::Display;
 
 use color_eyre::eyre::{eyre, Result};
+use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers};
 use ratatui::prelude::*;
 use ratatui::widgets::Table;
 use ratatui::Frame;
@@ -8,6 +9,7 @@ use rrr::record::{HashRecordPath, RecordPath, RecordReadVersionSuccess};
 use rrr::registry::Registry;
 use rrr::utils::fd_lock::ReadLock;
 use tokio::sync::mpsc::UnboundedSender;
+use tracing::debug;
 
 use crate::action::{Action, ComponentMessage};
 use crate::args::Args;
@@ -16,7 +18,7 @@ use crate::tui::Event;
 
 use super::input_field::InputField;
 use super::radio_array::RadioArray;
-use super::{Component, ComponentId, HandleEventSuccess};
+use super::{Component, ComponentId, Drawable, HandleEventSuccess};
 
 #[derive(Clone)]
 pub struct LineSpacer {
@@ -96,8 +98,7 @@ struct OpenedRecord {
 #[derive(Debug)]
 pub struct MainView {
     id: ComponentId,
-    record_name_field: InputField,
-    encoding_radio_array: RadioArray<Encoding>,
+    pane_open: PaneOpen,
     registry: Registry<ReadLock>,
     opened_record: OpenedRecord,
 }
@@ -133,14 +134,7 @@ impl MainView {
             .ok_or_else(|| eyre!("Failed to load the latest root record version."))?;
         Ok(Self {
             id,
-            record_name_field: InputField::new(ComponentId::new(), tx),
-            encoding_radio_array: RadioArray::new(
-                ComponentId::new(),
-                tx,
-                vec![Encoding::Utf8, Encoding::Hex],
-                &Encoding::Utf8,
-                Direction::Horizontal,
-            ),
+            pane_open: PaneOpen::new(ComponentId::new(), tx)?,
             registry,
             opened_record: OpenedRecord {
                 record: root_record,
@@ -235,6 +229,7 @@ impl MainView {
         Ok(())
     }
 
+    /*
     fn draw_pane_open(
         &self,
         frame: &mut Frame,
@@ -260,11 +255,11 @@ impl MainView {
 
         frame.render_widget(Span::raw("Record Name"), area_record_name_label);
         self.record_name_field
-            .draw(frame, area_record_name_field, focused_id)
+            .draw(frame, area_record_name_field, focused_id, ())
             .unwrap();
         frame.render_widget(Span::raw("Encoding"), area_encoding_label);
         self.encoding_radio_array
-            .draw(frame, area_encoding_field, focused_id)?;
+            .draw(frame, area_encoding_field, focused_id, ())?;
         // let [area_encoding_utf8, area_encoding_hex] = Layout::default()
         //     .direction(Direction::Horizontal)
         //     .spacing(2)
@@ -278,6 +273,7 @@ impl MainView {
         //     .unwrap();
         Ok(())
     }
+    */
 }
 
 impl Component for MainView {
@@ -293,7 +289,41 @@ impl Component for MainView {
         false
     }
 
-    fn draw(&self, frame: &mut Frame, area: Rect, focused_id: ComponentId) -> Result<()> {
+    fn get_id(&self) -> super::ComponentId {
+        self.id
+    }
+
+    fn get_children(&self) -> Vec<&dyn Component> {
+        vec![&self.pane_open]
+    }
+
+    fn get_children_mut(&mut self) -> Vec<&mut dyn Component> {
+        vec![&mut self.pane_open]
+    }
+
+    fn get_accessibility_node(&self) -> Result<accesskit::Node> {
+        let mut node = accesskit::Node::new(accesskit::Role::Group);
+        node.set_children(vec![]);
+        Ok(node)
+    }
+}
+
+impl Drawable for MainView {
+    type Args<'a>
+        = ()
+    where
+        Self: 'a;
+
+    fn draw<'a>(
+        &self,
+        frame: &mut Frame,
+        area: Rect,
+        focused_id: ComponentId,
+        (): Self::Args<'a>,
+    ) -> Result<()>
+    where
+        Self: 'a,
+    {
         const SPACER_HORIZONTAL: LineSpacer = LineSpacer {
             direction: Direction::Horizontal,
             begin: symbols::line::HORIZONTAL,
@@ -352,10 +382,69 @@ impl Component for MainView {
         self.draw_pane_metadata(frame, area_metadata, focused_id)?;
         self.draw_pane_overview(frame, area_overview, focused_id)?;
         self.draw_pane_content(frame, area_content, focused_id, area_metadata.x)?;
-        self.draw_pane_open(frame, area_bottom, focused_id, area_metadata.x)?;
+        self.pane_open.draw(
+            frame,
+            area_bottom,
+            focused_id,
+            PaneOpenArgs {
+                title_offset_x: area_metadata.x,
+            },
+        )?;
         self.draw_header(frame, area_header, focused_id)?;
 
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+struct PaneOpen {
+    id: ComponentId,
+    record_name_field: InputField,
+    encoding_radio_array: RadioArray<Encoding>,
+}
+
+impl PaneOpen {
+    pub fn new(id: ComponentId, tx: &UnboundedSender<Action>) -> Result<Self> {
+        Ok(Self {
+            id,
+            record_name_field: InputField::new(ComponentId::new(), tx),
+            encoding_radio_array: RadioArray::new(
+                ComponentId::new(),
+                tx,
+                vec![Encoding::Utf8, Encoding::Hex],
+                &Encoding::Utf8,
+                Direction::Horizontal,
+            ),
+        })
+    }
+
+    fn open_record(&mut self) {
+        todo!()
+    }
+}
+
+impl Component for PaneOpen {
+    fn update(&mut self, _message: ComponentMessage) -> Result<Option<crate::action::Action>> {
+        Ok(None)
+    }
+
+    fn handle_event(&mut self, event: &Event) -> Result<HandleEventSuccess> {
+        match event {
+            Event::Key(KeyEvent {
+                code: KeyCode::Enter,
+                kind: KeyEventKind::Press,
+                modifiers: KeyModifiers::NONE,
+                ..
+            }) => {
+                self.open_record();
+                Ok(HandleEventSuccess::handled().with_action(Action::Render))
+            }
+            _ => Ok(HandleEventSuccess::unhandled()),
+        }
+    }
+
+    fn is_focusable(&self) -> bool {
+        false
     }
 
     fn get_id(&self) -> super::ComponentId {
@@ -363,26 +452,74 @@ impl Component for MainView {
     }
 
     fn get_children(&self) -> Vec<&dyn Component> {
-        vec![
-            &self.record_name_field,
-            &self.encoding_radio_array,
-            // &self.encoding_utf8_checkbox,
-            // &self.encoding_hex_checkbox,
-        ]
+        vec![&self.record_name_field, &self.encoding_radio_array]
     }
 
     fn get_children_mut(&mut self) -> Vec<&mut dyn Component> {
-        vec![
-            &mut self.record_name_field,
-            &mut self.encoding_radio_array,
-            // &mut self.encoding_utf8_checkbox,
-            // &mut self.encoding_hex_checkbox,
-        ]
+        vec![&mut self.record_name_field, &mut self.encoding_radio_array]
     }
 
     fn get_accessibility_node(&self) -> Result<accesskit::Node> {
         let mut node = accesskit::Node::new(accesskit::Role::Group);
         node.set_children(vec![]);
         Ok(node)
+    }
+}
+
+struct PaneOpenArgs {
+    title_offset_x: u16,
+}
+
+impl Drawable for PaneOpen {
+    type Args<'a>
+        = PaneOpenArgs
+    where
+        Self: 'a;
+
+    fn draw<'a>(
+        &self,
+        frame: &mut Frame,
+        area: Rect,
+        focused_id: ComponentId,
+        extra_args: Self::Args<'a>,
+    ) -> Result<()>
+    where
+        Self: 'a,
+    {
+        let (area_title, area_content) = MainView::pane_areas(area, extra_args.title_offset_x);
+
+        frame.render_widget(Span::raw("Open Sub-Record [Enter]"), area_title);
+
+        let layout_bottom_lines = Layout::default()
+            .direction(Direction::Horizontal)
+            .spacing(1)
+            .constraints([Constraint::Length(11), Constraint::Fill(1)]);
+        let [area_record_name, area_encoding] = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(1), Constraint::Length(1)])
+            .areas(area_content);
+        let [area_record_name_label, area_record_name_field] =
+            layout_bottom_lines.areas(area_record_name);
+        let [area_encoding_label, area_encoding_field] = layout_bottom_lines.areas(area_encoding);
+
+        frame.render_widget(Span::raw("Record Name"), area_record_name_label);
+        self.record_name_field
+            .draw(frame, area_record_name_field, focused_id, ())
+            .unwrap();
+        frame.render_widget(Span::raw("Encoding"), area_encoding_label);
+        self.encoding_radio_array
+            .draw(frame, area_encoding_field, focused_id, ())?;
+        // let [area_encoding_utf8, area_encoding_hex] = Layout::default()
+        //     .direction(Direction::Horizontal)
+        //     .spacing(2)
+        //     .constraints([Constraint::Length(9), Constraint::Fill(1)])
+        //     .areas(area_encoding_field);
+        // self.encoding_utf8_checkbox
+        //     .draw(frame, area_encoding_utf8, focused_id)
+        //     .unwrap();
+        // self.encoding_hex_checkbox
+        //     .draw(frame, area_encoding_hex, focused_id)
+        //     .unwrap();
+        Ok(())
     }
 }
