@@ -388,6 +388,10 @@ impl Drawable for MainView {
             area.width = std::cmp::min(area.width, *force_max_width);
         }
 
+        if let Some(force_max_height) = self.args.force_max_height.as_ref() {
+            area.height = std::cmp::min(area.height, *force_max_height);
+        }
+
         let [area_header, area_top, area_content, area_bottom, area_footer] = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -489,6 +493,9 @@ impl PaneOpen {
     }
 
     fn spawn_open_record_task_with_record_name(&mut self, record_name: RecordName) {
+        // The main state is being cloned just because `MainState::get_current_succession_nonce`
+        // is an async function that needs to be awaited from within an async block.
+        // If this function ever becomes async, it should be moved up out of the async task.
         let main_state_clone = self.main_state.borrow().clone();
         let action_tx = self.action_tx.clone();
         tokio::spawn(

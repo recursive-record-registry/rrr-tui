@@ -21,6 +21,10 @@ pub struct Args {
     /// Enforce a maximum width of the user interface.
     #[arg(short('w'), long)]
     pub force_max_width: Option<u16>,
+
+    /// Enforce a maximum height of the user interface.
+    #[arg(short('h'), long)]
+    pub force_max_height: Option<u16>,
 }
 
 pub const VERSION_MESSAGE: &str = concat!(
