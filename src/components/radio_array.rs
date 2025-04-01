@@ -67,6 +67,22 @@ where
             layout_direction,
         }
     }
+
+    pub fn get_checked(&self) -> &T {
+        &self.items[self.checked_index].0
+    }
+
+    pub fn get_checked_mut(&mut self) -> &mut T {
+        &mut self.items[self.checked_index].0
+    }
+
+    pub fn get_checked_entry(&self) -> &(T, Checkbox) {
+        &self.items[self.checked_index]
+    }
+
+    pub fn get_checked_entry_mut(&mut self) -> &mut (T, Checkbox) {
+        &mut self.items[self.checked_index]
+    }
 }
 
 impl<T> Component for RadioArray<T>

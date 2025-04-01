@@ -1,5 +1,7 @@
 #![feature(let_chains)]
 
+use std::sync::Arc;
+
 use args::Args;
 use clap::Parser;
 use color_eyre::Result;
@@ -23,8 +25,8 @@ async fn main() -> Result<()> {
     let tracing_guard = crate::logging::init()?;
 
     async move {
-        let args = Args::parse();
-        let mut app = App::new(args).await?;
+        let args = Arc::new(Args::parse());
+        let mut app = App::new(&args).await?;
         app.run().await?;
         Ok(()) as Result<()>
     }

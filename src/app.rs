@@ -1,4 +1,4 @@
-use std::ops::ControlFlow;
+use std::{ops::ControlFlow, sync::Arc};
 
 use color_eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -31,7 +31,7 @@ pub struct App {
 
 impl App {
     #[instrument]
-    pub async fn new(args: Args) -> Result<Self> {
+    pub async fn new(args: &Arc<Args>) -> Result<Self> {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
         let mut app = Self {
             tick_rate: args.tick_rate,
@@ -39,7 +39,7 @@ impl App {
             should_quit: false,
             should_suspend: false,
             last_tick_key_events: Vec::new(),
-            root_component: Box::new(MainView::new(ComponentId::root(), &action_tx, &args).await?),
+            root_component: Box::new(MainView::new(ComponentId::root(), &action_tx, args).await?),
             focus_path: Default::default(),
             action_tx,
             action_rx,
@@ -56,7 +56,7 @@ impl App {
         Ok(app)
     }
 
-    #[instrument]
+    #[instrument(skip(self))]
     pub async fn run(&mut self) -> Result<()> {
         let mut tui = Tui::new(tracing::Span::current())?
             // .mouse(true) // uncomment this line to enable mouse support
@@ -83,7 +83,7 @@ impl App {
         Ok(())
     }
 
-    #[instrument]
+    #[instrument(skip(self, tui))]
     async fn handle_events(&mut self, tui: &mut Tui) -> Result<()> {
         let Some(event) = tui.next_event().await else {
             return Ok(());
@@ -146,7 +146,7 @@ impl App {
         Ok(())
     }
 
-    #[instrument]
+    #[instrument(skip(self))]
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<()> {
         tracing::trace!(?key);
         let action = match key {
@@ -191,7 +191,7 @@ impl App {
         Ok(())
     }
 
-    #[instrument]
+    #[instrument(skip(self))]
     fn change_focus(&mut self, focus_change: FocusChange) -> Result<()> {
         match focus_change.scope {
             FocusChangeScope::HorizontalAndVertical => {
@@ -266,7 +266,7 @@ impl App {
         Ok(())
     }
 
-    #[instrument]
+    #[instrument(skip(self, tui))]
     fn handle_actions(&mut self, tui: &mut Tui) -> Result<()> {
         while let Ok(action) = self.action_rx.try_recv() {
             let mut component_message = None;
@@ -303,14 +303,14 @@ impl App {
         Ok(())
     }
 
-    #[instrument]
+    #[instrument(skip(self, tui))]
     fn handle_resize(&mut self, tui: &mut Tui, w: u16, h: u16) -> Result<()> {
         tui.resize(Rect::new(0, 0, w, h))?;
         self.render(tui)?;
         Ok(())
     }
 
-    #[instrument]
+    #[instrument(skip(self, tui))]
     fn render(&mut self, tui: &mut Tui) -> Result<()> {
         let mut result = Ok(());
         tui.draw(|frame| {

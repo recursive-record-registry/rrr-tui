@@ -17,6 +17,10 @@ pub struct Args {
     /// By default, the current working directory is used.
     #[arg(short('d'), long, default_value = ".")]
     pub registry_directory: PathBuf,
+
+    /// Enforce a maximum width of the user interface.
+    #[arg(short('w'), long)]
+    pub force_max_width: Option<u16>,
 }
 
 pub const VERSION_MESSAGE: &str = concat!(

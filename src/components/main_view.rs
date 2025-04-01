@@ -1,15 +1,23 @@
+use std::cell::RefCell;
 use std::fmt::Display;
+use std::rc::Rc;
+use std::sync::Arc;
 
 use color_eyre::eyre::{eyre, Result};
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers};
 use ratatui::prelude::*;
 use ratatui::widgets::Table;
 use ratatui::Frame;
-use rrr::record::{HashRecordPath, RecordPath, RecordReadVersionSuccess};
+use rrr::record::{
+    HashRecordPath, HashedRecordKey, RecordKey, RecordName, RecordPath, RecordReadVersionSuccess,
+    SuccessionNonce, RECORD_NAME_ROOT,
+};
 use rrr::registry::Registry;
 use rrr::utils::fd_lock::ReadLock;
+use rrr::utils::serde::BytesOrAscii;
+use tokio::runtime::Handle;
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::debug;
+use tracing::{debug, info_span, Instrument};
 
 use crate::action::{Action, ComponentMessage};
 use crate::args::Args;
@@ -90,55 +98,73 @@ impl Display for Encoding {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct OpenedRecord {
-    record: RecordReadVersionSuccess,
+    hashed_record_key: HashedRecordKey,
+    record: Arc<RecordReadVersionSuccess>, // Rc'd for cheaper cloning
+}
+
+#[derive(Debug, Clone)]
+struct MainState {
+    registry: Arc<Registry<ReadLock>>,
+    opened_record: Option<OpenedRecord>,
+}
+
+impl MainState {
+    async fn get_current_succession_nonce(&self) -> SuccessionNonce {
+        if let Some(opened_record) = self.opened_record.as_ref() {
+            // This should be a pretty brief operation.
+            opened_record
+                .hashed_record_key
+                .derive_succession_nonce(&self.registry.config.kdf)
+                .await
+                .unwrap()
+        } else {
+            self.registry
+                .config
+                .kdf
+                .get_root_record_predecessor_nonce()
+                .clone()
+        }
+    }
 }
 
 #[derive(Debug)]
 pub struct MainView {
     id: ComponentId,
+    args: Arc<Args>,
     pane_open: PaneOpen,
-    registry: Registry<ReadLock>,
-    opened_record: OpenedRecord,
+    state: Rc<RefCell<MainState>>,
 }
 
 impl MainView {
-    pub async fn new(id: ComponentId, tx: &UnboundedSender<Action>, args: &Args) -> Result<Self>
+    pub async fn new(
+        id: ComponentId,
+        tx: &UnboundedSender<Action>,
+        args: &Arc<Args>,
+    ) -> Result<Self>
     where
         Self: Sized,
     {
         tracing::trace!(dir=?args.registry_directory);
-        let registry = Registry::open(args.registry_directory.clone())
-            .await
-            .unwrap();
-        // tokio::spawn(
-        //     async move {
-        // }
-        //     .instrument(info_span!("load registry task")),
-        // );
-        let hashed_record_key = RecordPath::default()
-            .hash_record_path(&registry)
-            .await
-            .unwrap();
-        let versions = registry
-            .list_record_versions(&hashed_record_key, 4, 4)
-            .await
-            .unwrap();
-        let latest_version = versions
-            .last()
-            .ok_or_else(|| eyre!("No root record versions found."))?;
-        let root_record = registry
-            .load_record(&hashed_record_key, latest_version.record_version, 4)
-            .await?
-            .ok_or_else(|| eyre!("Failed to load the latest root record version."))?;
+        let registry = Arc::new(
+            Registry::open(args.registry_directory.clone())
+                .await
+                .unwrap(),
+        );
+        let state = Rc::new(RefCell::new(MainState {
+            registry,
+            opened_record: None,
+        }));
+        let mut pane_open = PaneOpen::new(ComponentId::new(), tx, &state)?;
+
+        pane_open.spawn_open_record_task_with_record_name(RECORD_NAME_ROOT); // Attempt to open the default root record.
+
         Ok(Self {
             id,
-            pane_open: PaneOpen::new(ComponentId::new(), tx)?,
-            registry,
-            opened_record: OpenedRecord {
-                record: root_record,
-            },
+            args: args.clone(),
+            state,
+            pane_open,
         })
     }
 
@@ -185,17 +211,21 @@ impl MainView {
         _focused_id: ComponentId,
     ) -> Result<()> {
         let (area_title, area_content) = Self::pane_areas(area, 0);
-        let metadata_table = Table::new(
-            self.opened_record
-                .record
-                .metadata
-                .iter_with_semantic_keys()
-                .map(|(key, value)| crate::cbor::record_metadata_to_row(key, value)),
-            [Constraint::Length(16), Constraint::Fill(1)],
-        );
+
+        if let Some(opened_record) = self.state.borrow().opened_record.as_ref() {
+            let metadata_table = Table::new(
+                opened_record
+                    .record
+                    .metadata
+                    .iter_with_semantic_keys()
+                    .map(|(key, value)| crate::cbor::record_metadata_to_row(key, value)),
+                [Constraint::Length(16), Constraint::Fill(1)],
+            );
+
+            frame.render_widget(metadata_table, area_content);
+        }
 
         frame.render_widget(Span::raw("Record [M]etadata"), area_title);
-        frame.render_widget(metadata_table, area_content);
 
         Ok(())
     }
@@ -221,10 +251,13 @@ impl MainView {
         let (area_title, area_content) = Self::pane_areas(area, title_offset_x);
 
         frame.render_widget(Span::raw("Record [C]ontent"), area_title);
-        frame.render_widget(
-            Text::raw(String::from_utf8_lossy(&self.opened_record.record.data)),
-            area_content,
-        );
+
+        if let Some(opened_record) = self.state.borrow().opened_record.as_ref() {
+            frame.render_widget(
+                Text::raw(String::from_utf8_lossy(&opened_record.record.data)), // TODO: Other formats
+                area_content,
+            );
+        }
 
         Ok(())
     }
@@ -277,8 +310,20 @@ impl MainView {
 }
 
 impl Component for MainView {
-    fn update(&mut self, _message: ComponentMessage) -> Result<Option<crate::action::Action>> {
-        Ok(None)
+    fn update(&mut self, message: ComponentMessage) -> Result<Option<crate::action::Action>> {
+        match message {
+            ComponentMessage::RecordOpen {
+                hashed_record_key,
+                read_result: Some(read_result),
+            } => {
+                self.state.borrow_mut().opened_record = Some(OpenedRecord {
+                    hashed_record_key,
+                    record: Arc::new(read_result),
+                });
+                Ok(Some(Action::Render))
+            }
+            _ => Ok(None),
+        }
     }
 
     fn handle_event(&mut self, _event: &Event) -> Result<HandleEventSuccess> {
@@ -317,7 +362,7 @@ impl Drawable for MainView {
     fn draw<'a>(
         &self,
         frame: &mut Frame,
-        area: Rect,
+        mut area: Rect,
         focused_id: ComponentId,
         (): Self::Args<'a>,
     ) -> Result<()>
@@ -338,6 +383,11 @@ impl Drawable for MainView {
             end: symbols::line::HORIZONTAL_UP,
             merged: symbols::line::HORIZONTAL,
         };
+
+        if let Some(force_max_width) = self.args.force_max_width.as_ref() {
+            area.width = std::cmp::min(area.width, *force_max_width);
+        }
+
         let [area_header, area_top, area_content, area_bottom, area_footer] = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -399,18 +449,26 @@ impl Drawable for MainView {
 #[derive(Debug)]
 struct PaneOpen {
     id: ComponentId,
+    action_tx: UnboundedSender<Action>,
+    main_state: Rc<RefCell<MainState>>,
     record_name_field: InputField,
     encoding_radio_array: RadioArray<Encoding>,
 }
 
 impl PaneOpen {
-    pub fn new(id: ComponentId, tx: &UnboundedSender<Action>) -> Result<Self> {
+    pub fn new(
+        id: ComponentId,
+        action_tx: &UnboundedSender<Action>,
+        main_state: &Rc<RefCell<MainState>>,
+    ) -> Result<Self> {
         Ok(Self {
             id,
-            record_name_field: InputField::new(ComponentId::new(), tx),
+            action_tx: action_tx.clone(),
+            main_state: main_state.clone(),
+            record_name_field: InputField::new(ComponentId::new(), action_tx),
             encoding_radio_array: RadioArray::new(
                 ComponentId::new(),
-                tx,
+                action_tx,
                 vec![Encoding::Utf8, Encoding::Hex],
                 &Encoding::Utf8,
                 Direction::Horizontal,
@@ -418,14 +476,78 @@ impl PaneOpen {
         })
     }
 
-    fn open_record(&mut self) {
-        todo!()
+    fn get_record_name(&self) -> RecordName {
+        match self.encoding_radio_array.get_checked() {
+            Encoding::Utf8 => BytesOrAscii(self.record_name_field.get_content().as_bytes().into()),
+            Encoding::Hex => todo!(),
+        }
+    }
+
+    fn spawn_open_record_task(&mut self) {
+        let record_name = self.get_record_name();
+        self.spawn_open_record_task_with_record_name(record_name);
+    }
+
+    fn spawn_open_record_task_with_record_name(&mut self, record_name: RecordName) {
+        let main_state_clone = self.main_state.borrow().clone();
+        let action_tx = self.action_tx.clone();
+        tokio::spawn(
+            async move {
+                let registry = &*main_state_clone.registry;
+                let current_succession_nonce =
+                    main_state_clone.get_current_succession_nonce().await;
+                let record_key = RecordKey {
+                    predecessor_nonce: current_succession_nonce,
+                    record_name,
+                };
+                // TODO: Handle errors by displaying an error message
+                let (hashed_record_key, read_result) =
+                    Self::open_record(record_key, registry).await.unwrap();
+
+                debug!(?read_result, "Sending read result.");
+
+                action_tx
+                    .send(Action::BroadcastMessage(ComponentMessage::RecordOpen {
+                        hashed_record_key,
+                        read_result,
+                    }))
+                    .unwrap();
+            }
+            .instrument(info_span!("open record task")),
+        );
+    }
+
+    async fn open_record(
+        record_key: RecordKey,
+        registry: &Registry<ReadLock>,
+    ) -> Result<(HashedRecordKey, Option<RecordReadVersionSuccess>)> {
+        let hashed_record_key = record_key.hash(&registry.config.hash).await?;
+        let versions = registry
+            .list_record_versions(&hashed_record_key, 4, 4)
+            .await?;
+        let Some(latest_version) = versions.last() else {
+            return Ok((hashed_record_key, None));
+        };
+        let record = registry
+            .load_record(&hashed_record_key, latest_version.record_version, 4)
+            .await?
+            .ok_or_else(|| eyre!("Failed to load the latest root record version."))?;
+        Ok((hashed_record_key, Some(record)))
     }
 }
 
 impl Component for PaneOpen {
-    fn update(&mut self, _message: ComponentMessage) -> Result<Option<crate::action::Action>> {
-        Ok(None)
+    fn update(&mut self, message: ComponentMessage) -> Result<Option<Action>> {
+        match message {
+            // ComponentMessage::RecordOpen { read_result: None } => {
+            //     todo!(); // Display message above button
+            //     Ok(Some(Action::Render))
+            // }
+            // ComponentMessage::RecordOpen { read_result: Some(read_result) } => {
+
+            // }
+            _ => Ok(None),
+        }
     }
 
     fn handle_event(&mut self, event: &Event) -> Result<HandleEventSuccess> {
@@ -436,7 +558,7 @@ impl Component for PaneOpen {
                 modifiers: KeyModifiers::NONE,
                 ..
             }) => {
-                self.open_record();
+                self.spawn_open_record_task();
                 Ok(HandleEventSuccess::handled().with_action(Action::Render))
             }
             _ => Ok(HandleEventSuccess::unhandled()),

@@ -168,6 +168,10 @@ impl InputField {
         self.get_move_cursor_delta(position, direction)
             .map(|delta| (position as isize + delta) as usize)
     }
+
+    pub fn get_content(&self) -> &str {
+        &self.content
+    }
 }
 
 impl Component for InputField {
