@@ -179,10 +179,6 @@ impl Component for InputField {
         true
     }
 
-    fn update(&mut self, message: ComponentMessage) -> Result<Option<Action>> {
-        Ok(None)
-    }
-
     fn handle_event(&mut self, event: &Event) -> Result<HandleEventSuccess> {
         Ok(match event {
             Event::Key(KeyEvent {
@@ -265,10 +261,6 @@ impl Component for InputField {
 
     fn get_id(&self) -> ComponentId {
         self.id
-    }
-
-    fn get_accessibility_node(&self) -> Result<accesskit::Node> {
-        todo!()
     }
 }
 

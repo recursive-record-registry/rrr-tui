@@ -326,14 +326,6 @@ impl Component for MainView {
         }
     }
 
-    fn handle_event(&mut self, _event: &Event) -> Result<HandleEventSuccess> {
-        Ok(HandleEventSuccess::unhandled())
-    }
-
-    fn is_focusable(&self) -> bool {
-        false
-    }
-
     fn get_id(&self) -> super::ComponentId {
         self.id
     }
@@ -572,10 +564,6 @@ impl Component for PaneOpen {
         }
     }
 
-    fn is_focusable(&self) -> bool {
-        false
-    }
-
     fn get_id(&self) -> super::ComponentId {
         self.id
     }
@@ -586,12 +574,6 @@ impl Component for PaneOpen {
 
     fn get_children_mut(&mut self) -> Vec<&mut dyn Component> {
         vec![&mut self.record_name_field, &mut self.encoding_radio_array]
-    }
-
-    fn get_accessibility_node(&self) -> Result<accesskit::Node> {
-        let mut node = accesskit::Node::new(accesskit::Role::Group);
-        node.set_children(vec![]);
-        Ok(node)
     }
 }
 
@@ -638,17 +620,7 @@ impl Drawable for PaneOpen {
         frame.render_widget(Span::raw("Encoding"), area_encoding_label);
         self.encoding_radio_array
             .draw(frame, area_encoding_field, focused_id, ())?;
-        // let [area_encoding_utf8, area_encoding_hex] = Layout::default()
-        //     .direction(Direction::Horizontal)
-        //     .spacing(2)
-        //     .constraints([Constraint::Length(9), Constraint::Fill(1)])
-        //     .areas(area_encoding_field);
-        // self.encoding_utf8_checkbox
-        //     .draw(frame, area_encoding_utf8, focused_id)
-        //     .unwrap();
-        // self.encoding_hex_checkbox
-        //     .draw(frame, area_encoding_hex, focused_id)
-        //     .unwrap();
+
         Ok(())
     }
 }

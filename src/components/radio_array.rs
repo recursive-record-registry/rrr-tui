@@ -89,10 +89,6 @@ impl<T> Component for RadioArray<T>
 where
     T: ToString + Clone + PartialEq + Debug,
 {
-    fn is_focusable(&self) -> bool {
-        false
-    }
-
     fn update(&mut self, message: ComponentMessage) -> Result<Option<Action>> {
         Ok(match message {
             ComponentMessage::OnCheckboxToggle { id, new_value: _ } => {
@@ -109,10 +105,6 @@ where
             }
             _ => None,
         })
-    }
-
-    fn handle_event(&mut self, event: &Event) -> Result<HandleEventSuccess> {
-        Ok(HandleEventSuccess::unhandled())
     }
 
     fn get_id(&self) -> ComponentId {
@@ -153,10 +145,6 @@ where
         }
 
         ControlFlow::Continue(())
-    }
-
-    fn get_accessibility_node(&self) -> Result<accesskit::Node> {
-        todo!()
     }
 }
 

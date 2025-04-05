@@ -12,6 +12,7 @@ pub mod checkbox;
 pub mod input_field;
 pub mod main_view;
 pub mod radio_array;
+pub mod spinner_field;
 
 mod id {
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -173,17 +174,25 @@ impl HandleEventSuccess {
 /// receive events, update state, and be rendered on the screen.
 pub trait Component: Debug {
     /// Handle events when focused.
-    fn handle_event(&mut self, event: &Event) -> Result<HandleEventSuccess>;
+    fn handle_event(&mut self, event: &Event) -> Result<HandleEventSuccess> {
+        Ok(HandleEventSuccess::unhandled())
+    }
 
-    fn update(&mut self, message: ComponentMessage) -> Result<Option<Action>>;
+    fn update(&mut self, message: ComponentMessage) -> Result<Option<Action>> {
+        Ok(None)
+    }
 
     /// Returns the immutable unique ID of this component's instance.
     fn get_id(&self) -> ComponentId;
 
-    fn get_accessibility_node(&self) -> Result<accesskit::Node>;
+    fn get_accessibility_node(&self) -> Result<accesskit::Node> {
+        todo!()
+    }
 
     /// Returns `true` iff this component can be focused such that it is able to handle events.
-    fn is_focusable(&self) -> bool;
+    fn is_focusable(&self) -> bool {
+        false
+    }
 
     fn get_children(&self) -> Vec<&dyn Component> {
         Default::default()
