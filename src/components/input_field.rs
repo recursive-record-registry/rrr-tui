@@ -268,7 +268,10 @@ impl Drawable for InputField {
     where
         Self: 'a;
 
-    fn draw(&self, context: &mut DrawContext, mut area: Rect, (): Self::Args<'_>) -> Result<()> {
+    fn draw<'a>(&self, context: &mut DrawContext, mut area: Rect, (): Self::Args<'a>) -> Result<()>
+    where
+        Self: 'a,
+    {
         if area.area() == 0 {
             return Ok(());
         }

@@ -1,4 +1,8 @@
-use std::{ops::ControlFlow, sync::Arc};
+use std::{
+    ops::ControlFlow,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use color_eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -28,6 +32,7 @@ pub struct App {
     action_rx: mpsc::UnboundedReceiver<Action>,
     root_component: Box<dyn DefaultDrawableComponent>,
     focus_path: ComponentIdPath,
+    first_render_instant: Option<Instant>,
 }
 
 impl App {
@@ -44,6 +49,7 @@ impl App {
             focus_path: Default::default(),
             action_tx,
             action_rx,
+            first_render_instant: None,
         };
 
         // Ensure a valid initial focus.
@@ -316,12 +322,23 @@ impl App {
         let mut result = Ok(());
         tui.draw(|frame| {
             let area = frame.area();
+            let elapsed_time = self.get_elapsed_time();
             result = self.root_component.default_draw(
-                &mut DrawContext::new(frame, self.get_focused_component_id()),
+                &mut DrawContext::new(frame, self.get_focused_component_id(), elapsed_time),
                 area,
             );
         })?;
         result
+    }
+
+    fn get_elapsed_time(&mut self) -> Duration {
+        let current_instant = Instant::now();
+        if let Some(first_render_instant) = self.first_render_instant.as_ref() {
+            current_instant.duration_since(*first_render_instant)
+        } else {
+            self.first_render_instant = Some(current_instant);
+            Duration::ZERO
+        }
     }
 
     fn get_focused_component_id(&self) -> ComponentId {

@@ -1,6 +1,3 @@
-
-
-
 pub mod checkbox;
 pub mod input_field;
 pub mod main_view;

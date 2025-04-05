@@ -153,7 +153,10 @@ where
     where
         Self: 'a;
 
-    fn draw<'a>(&'a self, context: &mut DrawContext, area: Rect, (): Self::Args<'a>) -> Result<()> {
+    fn draw<'a>(&self, context: &mut DrawContext, area: Rect, (): Self::Args<'a>) -> Result<()>
+    where
+        Self: 'a,
+    {
         if area.area() == 0 {
             return Ok(());
         }

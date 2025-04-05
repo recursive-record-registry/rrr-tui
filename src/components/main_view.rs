@@ -8,8 +8,8 @@ use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::prelude::*;
 use ratatui::widgets::Table;
 use rrr::record::{
-    HashedRecordKey, RecordKey, RecordName, RecordReadVersionSuccess,
-    SuccessionNonce, RECORD_NAME_ROOT,
+    HashedRecordKey, RecordKey, RecordName, RecordReadVersionSuccess, SuccessionNonce,
+    RECORD_NAME_ROOT,
 };
 use rrr::registry::Registry;
 use rrr::utils::fd_lock::ReadLock;
@@ -336,7 +336,10 @@ impl Drawable for MainView {
     where
         Self: 'a;
 
-    fn draw(&self, context: &mut DrawContext, mut area: Rect, (): Self::Args<'_>) -> Result<()> {
+    fn draw<'a>(&self, context: &mut DrawContext, mut area: Rect, (): Self::Args<'a>) -> Result<()>
+    where
+        Self: 'a,
+    {
         const SPACER_HORIZONTAL: LineSpacer = LineSpacer {
             direction: Direction::Horizontal,
             begin: symbols::line::HORIZONTAL,
@@ -561,12 +564,15 @@ impl Drawable for PaneOpen {
     where
         Self: 'a;
 
-    fn draw(
+    fn draw<'a>(
         &self,
         context: &mut DrawContext,
         area: Rect,
-        extra_args: Self::Args<'_>,
-    ) -> Result<()> {
+        extra_args: Self::Args<'a>,
+    ) -> Result<()>
+    where
+        Self: 'a,
+    {
         let (area_title, area_content) = MainView::pane_areas(area, extra_args.title_offset_x);
 
         context

@@ -1,4 +1,4 @@
-use std::{cell::RefCell, fmt::Debug, ops::ControlFlow};
+use std::{cell::RefCell, fmt::Debug, ops::ControlFlow, time::Duration};
 
 use color_eyre::Result;
 use ratatui::{layout::Rect, Frame};
@@ -222,12 +222,19 @@ pub trait Component: Debug {
 #[derive(Debug)]
 pub struct DrawContext<'a, 'b: 'a> {
     frame: &'a mut Frame<'b>,
+    /// The currently focused leaf component ID.
     focused_id: ComponentId,
+    /// Time elapsed since the app was launched.
+    elapsed_time: Duration,
 }
 
 impl<'a, 'b: 'a> DrawContext<'a, 'b> {
-    pub fn new(frame: &'a mut Frame<'b>, focused_id: ComponentId) -> Self {
-        Self { frame, focused_id }
+    pub fn new(frame: &'a mut Frame<'b>, focused_id: ComponentId, elapsed_time: Duration) -> Self {
+        Self {
+            frame,
+            focused_id,
+            elapsed_time,
+        }
     }
 
     pub fn frame(&mut self) -> &mut Frame<'b> {
@@ -245,8 +252,14 @@ pub trait Drawable {
     where
         Self: 'a;
 
-    fn draw(&self, context: &mut DrawContext, area: Rect, extra_args: Self::Args<'_>)
-        -> Result<()>;
+    fn draw<'a>(
+        &self,
+        context: &mut DrawContext,
+        area: Rect,
+        extra_args: Self::Args<'a>,
+    ) -> Result<()>
+    where
+        Self: 'a;
 }
 
 /// A drawable element that takes no extra arguments for drawing.
