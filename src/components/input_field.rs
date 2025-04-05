@@ -6,14 +6,12 @@ use ratatui::{
     layout::Rect,
     style::{Color, Style, Stylize},
     text::{Line, Span},
-    Frame,
 };
 use tokio::sync::mpsc::UnboundedSender;
 
-use super::{Component, ComponentId, Drawable, HandleEventSuccess};
-
 use crate::{
-    action::{Action, ComponentMessage},
+    action::Action,
+    component::{Component, ComponentId, DrawContext, Drawable, HandleEventSuccess},
     tui::Event,
 };
 
@@ -245,7 +243,7 @@ impl Component for InputField {
                 HandleEventSuccess::handled().with_action(Action::Render)
             }
             Event::Paste(paste_string) => {
-                self.insert(&paste_string);
+                self.insert(paste_string);
                 HandleEventSuccess::handled().with_action(Action::Render)
             }
             Event::FocusGained => {
@@ -270,23 +268,14 @@ impl Drawable for InputField {
     where
         Self: 'a;
 
-    fn draw<'a>(
-        &self,
-        frame: &mut Frame,
-        mut area: Rect,
-        focused_id: ComponentId,
-        (): Self::Args<'a>,
-    ) -> Result<()>
-    where
-        Self: 'a,
-    {
+    fn draw(&self, context: &mut DrawContext, mut area: Rect, (): Self::Args<'_>) -> Result<()> {
         if area.area() == 0 {
             return Ok(());
         }
 
         area.height = 1;
 
-        let focused = focused_id == self.id;
+        let focused = context.focused_id() == self.id;
 
         if focused {
             let minmax = self.cursor.minmax();
@@ -304,7 +293,7 @@ impl Drawable for InputField {
                 } else {
                     spans.push(Span::styled(" ", Style::new().reversed()));
                 }
-                frame.render_widget(Line::from(spans), area);
+                context.frame().render_widget(Line::from(spans), area);
             } else {
                 let spans = vec![
                     Span::styled(&self.content[..minmax.start], Style::new()),
@@ -314,10 +303,12 @@ impl Drawable for InputField {
                     ),
                     Span::styled(&self.content[minmax.end..], Style::new()),
                 ];
-                frame.render_widget(Line::from(spans), area);
+                context.frame().render_widget(Line::from(spans), area);
             }
         } else {
-            frame.render_widget(Span::styled(&self.content, Style::new()), area);
+            context
+                .frame()
+                .render_widget(Span::styled(&self.content, Style::new()), area);
         }
 
         Ok(())

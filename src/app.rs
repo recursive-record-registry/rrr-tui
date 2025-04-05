@@ -9,10 +9,11 @@ use tracing::instrument;
 use crate::{
     action::{Action, ComponentMessage, FocusChange, FocusChangeDirection, FocusChangeScope},
     args::Args,
-    components::{
-        self, find_component_by_id_mut, main_view::MainView, Component, ComponentId,
-        ComponentIdPath, DefaultDrawableComponent, HandleEventSuccess,
+    component::{
+        self, find_component_by_id_mut, Component, ComponentId, ComponentIdPath,
+        DefaultDrawableComponent, DrawContext, HandleEventSuccess,
     },
+    components::main_view::MainView,
     tui::{Event, Tui},
 };
 
@@ -211,7 +212,7 @@ impl App {
                     .copied()
                     .unwrap_or(self.root_component.get_id());
 
-                let _ = components::depth_first_search(
+                let _ = component::depth_first_search(
                     &*self.root_component,
                     &mut |component| -> ControlFlow<()> {
                         if component.is_focusable() {
@@ -287,7 +288,7 @@ impl App {
             }
 
             if let Some(component_message) = component_message {
-                let _ = components::depth_first_search_mut(
+                let _ = component::depth_first_search_mut(
                     &mut *self.root_component,
                     &mut |component| -> ControlFlow<()> {
                         if let Some(action) = component.update(component_message.clone()).unwrap() {
@@ -314,10 +315,10 @@ impl App {
     fn render(&mut self, tui: &mut Tui) -> Result<()> {
         let mut result = Ok(());
         tui.draw(|frame| {
+            let area = frame.area();
             result = self.root_component.default_draw(
-                frame,
-                frame.area(),
-                self.get_focused_component_id(),
+                &mut DrawContext::new(frame, self.get_focused_component_id()),
+                area,
             );
         })?;
         result

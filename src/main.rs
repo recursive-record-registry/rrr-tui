@@ -13,6 +13,7 @@ mod action;
 mod app;
 mod args;
 mod cbor;
+mod component;
 mod components;
 mod env;
 mod errors;

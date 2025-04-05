@@ -1,7 +1,7 @@
-use rrr::record::{HashedRecordKey, Record, RecordReadVersionSuccess};
+use rrr::record::{HashedRecordKey, RecordReadVersionSuccess};
 use strum::Display;
 
-use crate::components::ComponentId;
+use crate::component::ComponentId;
 
 /// These are applied to all components unconditionally using the `Component::update` method.
 #[derive(Debug, Clone, PartialEq, Display)]

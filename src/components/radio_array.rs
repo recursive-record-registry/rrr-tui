@@ -1,17 +1,13 @@
 use std::{fmt::Debug, ops::ControlFlow};
 
 use color_eyre::Result;
-use ratatui::{
-    layout::{Direction, Layout, Rect},
-    Frame,
-};
+use ratatui::layout::{Direction, Layout, Rect};
 use tokio::sync::mpsc::UnboundedSender;
-
-use super::{checkbox::Checkbox, Component, ComponentId, Drawable, HandleEventSuccess};
 
 use crate::{
     action::{Action, ComponentMessage},
-    tui::Event,
+    component::{Component, ComponentId, DrawContext, Drawable},
+    components::checkbox::Checkbox,
 };
 
 #[derive(Debug, Clone)]
@@ -157,16 +153,7 @@ where
     where
         Self: 'a;
 
-    fn draw<'a>(
-        &self,
-        frame: &mut Frame,
-        area: Rect,
-        focused_id: ComponentId,
-        (): Self::Args<'a>,
-    ) -> Result<()>
-    where
-        Self: 'a,
-    {
+    fn draw<'a>(&'a self, context: &mut DrawContext, area: Rect, (): Self::Args<'a>) -> Result<()> {
         if area.area() == 0 {
             return Ok(());
         }
@@ -188,7 +175,7 @@ where
         .split_with_spacers(area);
 
         for ((_, checkbox), checkbox_area) in self.items.iter().zip(areas.iter()) {
-            checkbox.draw(frame, *checkbox_area, focused_id, ())?;
+            checkbox.draw(context, *checkbox_area, ())?;
         }
 
         Ok(())

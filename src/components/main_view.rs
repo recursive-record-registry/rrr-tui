@@ -4,29 +4,27 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use color_eyre::eyre::{eyre, Result};
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::prelude::*;
 use ratatui::widgets::Table;
-use ratatui::Frame;
 use rrr::record::{
-    HashRecordPath, HashedRecordKey, RecordKey, RecordName, RecordPath, RecordReadVersionSuccess,
+    HashedRecordKey, RecordKey, RecordName, RecordReadVersionSuccess,
     SuccessionNonce, RECORD_NAME_ROOT,
 };
 use rrr::registry::Registry;
 use rrr::utils::fd_lock::ReadLock;
 use rrr::utils::serde::BytesOrAscii;
-use tokio::runtime::Handle;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, info_span, Instrument};
 
 use crate::action::{Action, ComponentMessage};
 use crate::args::Args;
+use crate::component::{Component, ComponentId, DrawContext, Drawable, HandleEventSuccess};
 use crate::env::PROJECT_VERSION;
 use crate::tui::Event;
 
 use super::input_field::InputField;
 use super::radio_array::RadioArray;
-use super::{Component, ComponentId, Drawable, HandleEventSuccess};
 
 #[derive(Clone)]
 pub struct LineSpacer {
@@ -180,36 +178,23 @@ impl MainView {
         (title, content)
     }
 
-    fn draw_header(
-        &self,
-        frame: &mut Frame,
-        area_header: Rect,
-        _focused_id: ComponentId,
-    ) -> Result<()> {
-        frame.render_widget(
+    fn draw_header(&self, context: &mut DrawContext, area_header: Rect) -> Result<()> {
+        context.frame().render_widget(
             Span::raw(format!("RRR TUI v{}", *PROJECT_VERSION)),
             area_header,
         );
         Ok(())
     }
 
-    fn draw_pane_tree(
-        &self,
-        frame: &mut Frame,
-        area: Rect,
-        _focused_id: ComponentId,
-    ) -> Result<()> {
+    fn draw_pane_tree(&self, context: &mut DrawContext, area: Rect) -> Result<()> {
         let (area_title, _area_content) = Self::pane_areas(area, 0);
-        frame.render_widget(Span::raw("[T]ree"), area_title);
+        context
+            .frame()
+            .render_widget(Span::raw("[T]ree"), area_title);
         Ok(())
     }
 
-    fn draw_pane_metadata(
-        &self,
-        frame: &mut Frame,
-        area: Rect,
-        _focused_id: ComponentId,
-    ) -> Result<()> {
+    fn draw_pane_metadata(&self, context: &mut DrawContext, area: Rect) -> Result<()> {
         let (area_title, area_content) = Self::pane_areas(area, 0);
 
         if let Some(opened_record) = self.state.borrow().opened_record.as_ref() {
@@ -222,38 +207,38 @@ impl MainView {
                 [Constraint::Length(16), Constraint::Fill(1)],
             );
 
-            frame.render_widget(metadata_table, area_content);
+            context.frame().render_widget(metadata_table, area_content);
         }
 
-        frame.render_widget(Span::raw("Record [M]etadata"), area_title);
+        context
+            .frame()
+            .render_widget(Span::raw("Record [M]etadata"), area_title);
 
         Ok(())
     }
 
-    fn draw_pane_overview(
-        &self,
-        frame: &mut Frame,
-        area: Rect,
-        _focused_id: ComponentId,
-    ) -> Result<()> {
+    fn draw_pane_overview(&self, context: &mut DrawContext, area: Rect) -> Result<()> {
         let (area_title, _area_content) = Self::pane_areas(area, 0);
-        frame.render_widget(Span::raw("[O]verview"), area_title);
+        context
+            .frame()
+            .render_widget(Span::raw("[O]verview"), area_title);
         Ok(())
     }
 
     fn draw_pane_content(
         &self,
-        frame: &mut Frame,
+        context: &mut DrawContext,
         area: Rect,
-        _focused_id: ComponentId,
         title_offset_x: u16,
     ) -> Result<()> {
         let (area_title, area_content) = Self::pane_areas(area, title_offset_x);
 
-        frame.render_widget(Span::raw("Record [C]ontent"), area_title);
+        context
+            .frame()
+            .render_widget(Span::raw("Record [C]ontent"), area_title);
 
         if let Some(opened_record) = self.state.borrow().opened_record.as_ref() {
-            frame.render_widget(
+            context.frame().render_widget(
                 Text::raw(String::from_utf8_lossy(&opened_record.record.data)), // TODO: Other formats
                 area_content,
             );
@@ -326,7 +311,7 @@ impl Component for MainView {
         }
     }
 
-    fn get_id(&self) -> super::ComponentId {
+    fn get_id(&self) -> ComponentId {
         self.id
     }
 
@@ -351,16 +336,7 @@ impl Drawable for MainView {
     where
         Self: 'a;
 
-    fn draw<'a>(
-        &self,
-        frame: &mut Frame,
-        mut area: Rect,
-        focused_id: ComponentId,
-        (): Self::Args<'a>,
-    ) -> Result<()>
-    where
-        Self: 'a,
-    {
+    fn draw(&self, context: &mut DrawContext, mut area: Rect, (): Self::Args<'_>) -> Result<()> {
         const SPACER_HORIZONTAL: LineSpacer = LineSpacer {
             direction: Direction::Horizontal,
             begin: symbols::line::HORIZONTAL,
@@ -405,18 +381,26 @@ impl Drawable for MainView {
         let [area_tree, area_metadata, area_overview] = layout_top.areas(area_top);
         let [_, area_top_spacer_0, area_top_spacer_1, _] = layout_top.spacers(area_top);
 
-        frame.render_widget(SPACER_HORIZONTAL.clone(), area_top);
-        frame.render_widget(SPACER_HORIZONTAL.clone(), area_content);
-        frame.render_widget(SPACER_HORIZONTAL.clone(), area_bottom);
-        frame.render_widget(SPACER_HORIZONTAL.clone(), area_footer);
-        frame.render_widget(
+        context
+            .frame()
+            .render_widget(SPACER_HORIZONTAL.clone(), area_top);
+        context
+            .frame()
+            .render_widget(SPACER_HORIZONTAL.clone(), area_content);
+        context
+            .frame()
+            .render_widget(SPACER_HORIZONTAL.clone(), area_bottom);
+        context
+            .frame()
+            .render_widget(SPACER_HORIZONTAL.clone(), area_footer);
+        context.frame().render_widget(
             SPACER_VERTICAL_FORKED.clone(),
             Rect {
                 height: area_top_spacer_0.height + 1,
                 ..area_top_spacer_0
             },
         );
-        frame.render_widget(
+        context.frame().render_widget(
             SPACER_VERTICAL_FORKED.clone(),
             Rect {
                 height: area_top_spacer_1.height + 1,
@@ -424,19 +408,18 @@ impl Drawable for MainView {
             },
         );
 
-        self.draw_pane_tree(frame, area_tree, focused_id)?;
-        self.draw_pane_metadata(frame, area_metadata, focused_id)?;
-        self.draw_pane_overview(frame, area_overview, focused_id)?;
-        self.draw_pane_content(frame, area_content, focused_id, area_metadata.x)?;
+        self.draw_pane_tree(context, area_tree)?;
+        self.draw_pane_metadata(context, area_metadata)?;
+        self.draw_pane_overview(context, area_overview)?;
+        self.draw_pane_content(context, area_content, area_metadata.x)?;
         self.pane_open.draw(
-            frame,
+            context,
             area_bottom,
-            focused_id,
             PaneOpenArgs {
                 title_offset_x: area_metadata.x,
             },
         )?;
-        self.draw_header(frame, area_header, focused_id)?;
+        self.draw_header(context, area_header)?;
 
         Ok(())
     }
@@ -537,16 +520,7 @@ impl PaneOpen {
 
 impl Component for PaneOpen {
     fn update(&mut self, message: ComponentMessage) -> Result<Option<Action>> {
-        match message {
-            // ComponentMessage::RecordOpen { read_result: None } => {
-            //     todo!(); // Display message above button
-            //     Ok(Some(Action::Render))
-            // }
-            // ComponentMessage::RecordOpen { read_result: Some(read_result) } => {
-
-            // }
-            _ => Ok(None),
-        }
+        Ok(None)
     }
 
     fn handle_event(&mut self, event: &Event) -> Result<HandleEventSuccess> {
@@ -564,7 +538,7 @@ impl Component for PaneOpen {
         }
     }
 
-    fn get_id(&self) -> super::ComponentId {
+    fn get_id(&self) -> ComponentId {
         self.id
     }
 
@@ -587,19 +561,17 @@ impl Drawable for PaneOpen {
     where
         Self: 'a;
 
-    fn draw<'a>(
+    fn draw(
         &self,
-        frame: &mut Frame,
+        context: &mut DrawContext,
         area: Rect,
-        focused_id: ComponentId,
-        extra_args: Self::Args<'a>,
-    ) -> Result<()>
-    where
-        Self: 'a,
-    {
+        extra_args: Self::Args<'_>,
+    ) -> Result<()> {
         let (area_title, area_content) = MainView::pane_areas(area, extra_args.title_offset_x);
 
-        frame.render_widget(Span::raw("Open Sub-Record [Enter]"), area_title);
+        context
+            .frame()
+            .render_widget(Span::raw("Open Sub-Record [Enter]"), area_title);
 
         let layout_bottom_lines = Layout::default()
             .direction(Direction::Horizontal)
@@ -613,13 +585,17 @@ impl Drawable for PaneOpen {
             layout_bottom_lines.areas(area_record_name);
         let [area_encoding_label, area_encoding_field] = layout_bottom_lines.areas(area_encoding);
 
-        frame.render_widget(Span::raw("Record Name"), area_record_name_label);
+        context
+            .frame()
+            .render_widget(Span::raw("Record Name"), area_record_name_label);
         self.record_name_field
-            .draw(frame, area_record_name_field, focused_id, ())
+            .draw(context, area_record_name_field, ())
             .unwrap();
-        frame.render_widget(Span::raw("Encoding"), area_encoding_label);
+        context
+            .frame()
+            .render_widget(Span::raw("Encoding"), area_encoding_label);
         self.encoding_radio_array
-            .draw(frame, area_encoding_field, focused_id, ())?;
+            .draw(context, area_encoding_field, ())?;
 
         Ok(())
     }

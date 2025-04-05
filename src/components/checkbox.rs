@@ -6,14 +6,12 @@ use ratatui::{
     layout::{Rect, Size},
     style::{Style, Stylize},
     text::{Line, Span},
-    Frame,
 };
 use tokio::sync::mpsc::UnboundedSender;
 
-use super::{Component, ComponentId, Drawable, HandleEventSuccess};
-
 use crate::{
     action::{Action, ComponentMessage},
+    component::{Component, ComponentId, DrawContext, Drawable, HandleEventSuccess},
     tui::Event,
 };
 
@@ -115,22 +113,13 @@ impl Drawable for Checkbox {
     where
         Self: 'a;
 
-    fn draw<'a>(
-        &self,
-        frame: &mut Frame,
-        mut area: Rect,
-        focused_id: ComponentId,
-        (): Self::Args<'a>,
-    ) -> Result<()>
-    where
-        Self: 'a,
-    {
+    fn draw(&self, context: &mut DrawContext, mut area: Rect, (): Self::Args<'_>) -> Result<()> {
         if area.area() == 0 {
             return Ok(());
         }
 
         area.height = 1;
-        let focused = focused_id == self.id;
+        let focused = context.focused_id() == self.id;
         let checkmark_style = if focused {
             Style::new().reversed()
         } else {
@@ -147,7 +136,7 @@ impl Drawable for Checkbox {
             Span::raw(self.label.as_ref()),
         ];
 
-        frame.render_widget(Line::from_iter(spans), area);
+        context.frame().render_widget(Line::from_iter(spans), area);
 
         Ok(())
     }
