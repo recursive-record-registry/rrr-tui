@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::fmt::Display;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::time::Duration;
 
 use color_eyre::eyre::{eyre, Result};
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
@@ -19,11 +20,14 @@ use tracing::{debug, info_span, Instrument};
 
 use crate::action::{Action, ComponentMessage};
 use crate::args::Args;
+use crate::color::{ColorOklch, TextColor};
 use crate::component::{Component, ComponentId, DrawContext, Drawable, HandleEventSuccess};
 use crate::env::PROJECT_VERSION;
 use crate::tui::Event;
+use crate::error;
 
 use super::input_field::InputField;
+use super::open_status::{Animation, OpenStatus, SpinnerContent};
 use super::radio_array::RadioArray;
 
 #[derive(Clone)]
@@ -246,52 +250,6 @@ impl MainView {
 
         Ok(())
     }
-
-    /*
-    fn draw_pane_open(
-        &self,
-        frame: &mut Frame,
-        area: Rect,
-        focused_id: ComponentId,
-        title_offset_x: u16,
-    ) -> Result<()> {
-        let (area_title, area_content) = Self::pane_areas(area, title_offset_x);
-
-        frame.render_widget(Span::raw("Open Sub-Record [Enter]"), area_title);
-
-        let layout_bottom_lines = Layout::default()
-            .direction(Direction::Horizontal)
-            .spacing(1)
-            .constraints([Constraint::Length(11), Constraint::Fill(1)]);
-        let [area_record_name, area_encoding] = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Length(1), Constraint::Length(1)])
-            .areas(area_content);
-        let [area_record_name_label, area_record_name_field] =
-            layout_bottom_lines.areas(area_record_name);
-        let [area_encoding_label, area_encoding_field] = layout_bottom_lines.areas(area_encoding);
-
-        frame.render_widget(Span::raw("Record Name"), area_record_name_label);
-        self.record_name_field
-            .draw(frame, area_record_name_field, focused_id, ())
-            .unwrap();
-        frame.render_widget(Span::raw("Encoding"), area_encoding_label);
-        self.encoding_radio_array
-            .draw(frame, area_encoding_field, focused_id, ())?;
-        // let [area_encoding_utf8, area_encoding_hex] = Layout::default()
-        //     .direction(Direction::Horizontal)
-        //     .spacing(2)
-        //     .constraints([Constraint::Length(9), Constraint::Fill(1)])
-        //     .areas(area_encoding_field);
-        // self.encoding_utf8_checkbox
-        //     .draw(frame, area_encoding_utf8, focused_id)
-        //     .unwrap();
-        // self.encoding_hex_checkbox
-        //     .draw(frame, area_encoding_hex, focused_id)
-        //     .unwrap();
-        Ok(())
-    }
-    */
 }
 
 impl Component for MainView {
@@ -363,6 +321,11 @@ impl Drawable for MainView {
             area.height = std::cmp::min(area.height, *force_max_height);
         }
 
+        context
+            .frame()
+            .buffer_mut()
+            .set_style(area, TextColor::default());
+
         let [area_header, area_top, area_content, area_bottom, area_footer] = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -424,6 +387,21 @@ impl Drawable for MainView {
         )?;
         self.draw_header(context, area_header)?;
 
+        /* Debug Oklch color space
+        for y in area.y..(area.y + area.height) {
+            for x in area.x..(area.x + area.width) {
+                let u = (x - area.x) as f32 / area.width as f32;
+                let v = (y - area.y) as f32 / area.height as f32;
+                let Some(cell) = context.frame().buffer_mut().cell_mut((x, y)) else {
+                    continue;
+                };
+
+                cell.set_char(' ');
+                cell.bg = ColorOklch::new(0.75, 0.15 * v, u).into();
+            }
+        }
+        */
+
         Ok(())
     }
 }
@@ -435,6 +413,7 @@ struct PaneOpen {
     main_state: Rc<RefCell<MainState>>,
     record_name_field: InputField,
     encoding_radio_array: RadioArray<Encoding>,
+    status_spinner: OpenStatus<'static>,
 }
 
 impl PaneOpen {
@@ -454,6 +433,11 @@ impl PaneOpen {
                 vec![Encoding::Utf8, Encoding::Hex],
                 &Encoding::Utf8,
                 Direction::Horizontal,
+            ),
+            status_spinner: OpenStatus::new(
+                ComponentId::new(),
+                action_tx,
+                SpinnerContent::default(),
             ),
         })
     }
@@ -476,6 +460,14 @@ impl PaneOpen {
         // If this function ever becomes async, it should be moved up out of the async task.
         let main_state_clone = self.main_state.borrow().clone();
         let action_tx = self.action_tx.clone();
+
+        self.status_spinner.content = SpinnerContent::default()
+            .with_text(" Searching… ".into())
+            .with_animation(Some(Animation::ProgressIndeterminate {
+                period: Duration::from_secs_f32(0.5),
+                highlight: TextColor::default().bg(ColorOklch::new(0.3, 0.0, 0.0)),
+            }));
+
         tokio::spawn(
             async move {
                 let registry = &*main_state_clone.registry;
@@ -485,18 +477,21 @@ impl PaneOpen {
                     predecessor_nonce: current_succession_nonce,
                     record_name,
                 };
-                // TODO: Handle errors by displaying an error message
-                let (hashed_record_key, read_result) =
-                    Self::open_record(record_key, registry).await.unwrap();
 
-                debug!(?read_result, "Sending read result.");
+                error::report(&action_tx.clone(), async move || {
+                    let (hashed_record_key, read_result) =
+                        Self::open_record(record_key, registry).await?;
 
-                action_tx
-                    .send(Action::BroadcastMessage(ComponentMessage::RecordOpen {
+                    debug!(?read_result, "Sending read result.");
+
+                    action_tx.send(Action::BroadcastMessage(ComponentMessage::RecordOpen {
                         hashed_record_key,
                         read_result,
-                    }))
-                    .unwrap();
+                    }))?;
+
+                    Ok(())
+                })
+                .await;
             }
             .instrument(info_span!("open record task")),
         );
@@ -523,7 +518,28 @@ impl PaneOpen {
 
 impl Component for PaneOpen {
     fn update(&mut self, message: ComponentMessage) -> Result<Option<Action>> {
-        Ok(None)
+        match message {
+            ComponentMessage::RecordOpen {
+                read_result: Some(_),
+                ..
+            } => {
+                self.status_spinner.content = SpinnerContent::default();
+                Ok(Some(Action::Render))
+            }
+            ComponentMessage::RecordOpen {
+                read_result: None, ..
+            } => {
+                self.status_spinner.content = SpinnerContent::default()
+                    .with_text("Record not found".into())
+                    .with_color(TextColor::default().fg(ColorOklch::new(
+                        0.79,
+                        0.1603,
+                        67.76 / 360.0,
+                    )));
+                Ok(Some(Action::Render))
+            }
+            _ => Ok(None),
+        }
     }
 
     fn handle_event(&mut self, event: &Event) -> Result<HandleEventSuccess> {
@@ -582,21 +598,26 @@ impl Drawable for PaneOpen {
         let layout_bottom_lines = Layout::default()
             .direction(Direction::Horizontal)
             .spacing(1)
-            .constraints([Constraint::Length(11), Constraint::Fill(1)]);
+            .constraints([
+                Constraint::Length(11),
+                Constraint::Fill(1),
+                Constraint::Length(18),
+            ]);
         let [area_record_name, area_encoding] = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Length(1), Constraint::Length(1)])
             .areas(area_content);
-        let [area_record_name_label, area_record_name_field] =
+        let [area_record_name_label, area_record_name_field, area_status] =
             layout_bottom_lines.areas(area_record_name);
-        let [area_encoding_label, area_encoding_field] = layout_bottom_lines.areas(area_encoding);
+        let [area_encoding_label, area_encoding_field, area_button] =
+            layout_bottom_lines.areas(area_encoding);
 
         context
             .frame()
             .render_widget(Span::raw("Record Name"), area_record_name_label);
         self.record_name_field
-            .draw(context, area_record_name_field, ())
-            .unwrap();
+            .draw(context, area_record_name_field, ())?;
+        self.status_spinner.draw(context, area_status, ())?;
         context
             .frame()
             .render_widget(Span::raw("Encoding"), area_encoding_label);

@@ -74,10 +74,6 @@ impl Component for Checkbox {
         true
     }
 
-    fn update(&mut self, message: ComponentMessage) -> Result<Option<Action>> {
-        Ok(None)
-    }
-
     fn handle_event(&mut self, event: &Event) -> Result<HandleEventSuccess> {
         Ok(match event {
             Event::Key(KeyEvent {

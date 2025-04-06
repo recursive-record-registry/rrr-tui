@@ -1,4 +1,9 @@
-use std::{cell::RefCell, fmt::Debug, ops::ControlFlow, time::Duration};
+use std::{
+    cell::RefCell,
+    fmt::Debug,
+    ops::ControlFlow,
+    time::{Duration, Instant},
+};
 
 use color_eyre::Result;
 use ratatui::{layout::Rect, Frame};
@@ -48,6 +53,7 @@ mod id {
     pub struct ComponentIdPath(pub Vec<ComponentId>);
 
     impl ComponentIdPath {
+        #[expect(unused)]
         pub fn find_deepest_available_component<'a>(
             &self,
             root: &'a dyn super::Component,
@@ -168,17 +174,19 @@ impl HandleEventSuccess {
 /// receive events, update state, and be rendered on the screen.
 pub trait Component: Debug {
     /// Handle events when focused.
-    fn handle_event(&mut self, event: &Event) -> Result<HandleEventSuccess> {
+    fn handle_event(&mut self, _event: &Event) -> Result<HandleEventSuccess> {
         Ok(HandleEventSuccess::unhandled())
     }
 
-    fn update(&mut self, message: ComponentMessage) -> Result<Option<Action>> {
+    fn update(&mut self, _message: ComponentMessage) -> Result<Option<Action>> {
         Ok(None)
     }
 
     /// Returns the immutable unique ID of this component's instance.
     fn get_id(&self) -> ComponentId;
 
+    // TODO: Accesskit support
+    #[expect(unused)]
     fn get_accessibility_node(&self) -> Result<accesskit::Node> {
         todo!()
     }
@@ -224,15 +232,23 @@ pub struct DrawContext<'a, 'b: 'a> {
     frame: &'a mut Frame<'b>,
     /// The currently focused leaf component ID.
     focused_id: ComponentId,
-    /// Time elapsed since the app was launched.
+    /// The instant at which the rendering of the corresponding frame started.
+    now: Instant,
+    /// Time elapsed since the app was launched until `now`.
     elapsed_time: Duration,
 }
 
 impl<'a, 'b: 'a> DrawContext<'a, 'b> {
-    pub fn new(frame: &'a mut Frame<'b>, focused_id: ComponentId, elapsed_time: Duration) -> Self {
+    pub fn new(
+        frame: &'a mut Frame<'b>,
+        focused_id: ComponentId,
+        now: Instant,
+        elapsed_time: Duration,
+    ) -> Self {
         Self {
             frame,
             focused_id,
+            now,
             elapsed_time,
         }
     }
@@ -243,6 +259,14 @@ impl<'a, 'b: 'a> DrawContext<'a, 'b> {
 
     pub fn focused_id(&self) -> ComponentId {
         self.focused_id
+    }
+
+    pub fn now(&self) -> Instant {
+        self.now
+    }
+
+    pub fn elapsed_time(&self) -> Duration {
+        self.elapsed_time
     }
 }
 
@@ -312,6 +336,7 @@ pub fn for_each_child_mut<'a, B: 'a>(
     result.break_value()
 }
 
+#[expect(unused)]
 pub fn find_child_by_id(
     component: &dyn Component,
     child_id: ComponentId,
@@ -325,6 +350,7 @@ pub fn find_child_by_id(
     })
 }
 
+#[expect(unused)]
 pub fn find_child_by_id_mut(
     component: &mut dyn Component,
     child_id: ComponentId,

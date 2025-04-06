@@ -27,6 +27,7 @@ pub enum Action {
     Tick,
     Render,
     Resize(u16, u16),
+    #[expect(unused)]
     Suspend,
     Resume,
     Quit,
@@ -53,10 +54,12 @@ pub enum FocusChangeScope {
 }
 
 impl FocusChangeScope {
+    #[expect(unused)]
     pub fn is_horizontal_allowed(&self) -> bool {
         matches!(self, Self::Horizontal | Self::HorizontalAndVertical)
     }
 
+    #[expect(unused)]
     pub fn is_vertical_allowed(&self) -> bool {
         matches!(self, Self::Vertical | Self::HorizontalAndVertical)
     }

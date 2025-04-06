@@ -18,7 +18,6 @@ where
     id: ComponentId,
     items: Vec<(T, Checkbox)>,
     checked_index: usize,
-    action_tx: UnboundedSender<Action>,
     layout_direction: Direction,
 }
 
@@ -28,7 +27,7 @@ where
 {
     pub fn new(
         id: ComponentId,
-        tx: &UnboundedSender<Action>,
+        action_tx: &UnboundedSender<Action>,
         items: Vec<T>,
         checked_item: &T,
         layout_direction: Direction,
@@ -50,7 +49,7 @@ where
                 .map(|(index, item)| {
                     let checkbox = Checkbox::new(
                         ComponentId::new(),
-                        tx,
+                        action_tx,
                         item.to_string().into(),
                         index == checked_index,
                     )
@@ -59,7 +58,6 @@ where
                 })
                 .collect(),
             checked_index,
-            action_tx: tx.clone(),
             layout_direction,
         }
     }
@@ -68,14 +66,17 @@ where
         &self.items[self.checked_index].0
     }
 
+    #[expect(unused)]
     pub fn get_checked_mut(&mut self) -> &mut T {
         &mut self.items[self.checked_index].0
     }
 
+    #[expect(unused)]
     pub fn get_checked_entry(&self) -> &(T, Checkbox) {
         &self.items[self.checked_index]
     }
 
+    #[expect(unused)]
     pub fn get_checked_entry_mut(&mut self) -> &mut (T, Checkbox) {
         &mut self.items[self.checked_index]
     }

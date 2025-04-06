@@ -60,6 +60,7 @@ opentelemetry_sdk = { version = "0.29.0", features = ["rt-tokio"], optional = tr
 # Feature tracy
 tracing-tracy = { version = "0.11.4", optional = true }
 itertools = "0.14.0"
+kolor = "0.1.9"
 
 [build-dependencies]
 anyhow = "1.0.90"

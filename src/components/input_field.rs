@@ -78,7 +78,7 @@ pub struct InputField {
 }
 
 impl InputField {
-    pub fn new(id: ComponentId, tx: &UnboundedSender<Action>) -> Self
+    pub fn new(id: ComponentId, _action_tx: &UnboundedSender<Action>) -> Self
     where
         Self: Sized,
     {

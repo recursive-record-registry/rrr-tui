@@ -1,7 +1,10 @@
 use std::env;
 
 use color_eyre::Result;
+use tokio::sync::mpsc::UnboundedSender;
 use tracing::error;
+
+use crate::action::{Action, ComponentMessage};
 
 pub fn init() -> Result<()> {
     let (panic_hook, eyre_hook) = color_eyre::config::HookBuilder::default()
@@ -74,4 +77,16 @@ macro_rules! trace_dbg {
         ($ex:expr) => {
                 trace_dbg!(level: tracing::Level::DEBUG, $ex)
         };
+}
+
+pub async fn report(action_tx: &UnboundedSender<Action>, f: impl async FnOnce() -> Result<()>) {
+    if let Err(error) = (f)().await {
+        let message = error.to_string();
+
+        action_tx
+            .send(Action::BroadcastMessage(ComponentMessage::ShowError {
+                error: message,
+            }))
+            .unwrap();
+    }
 }

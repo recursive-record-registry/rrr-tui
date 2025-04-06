@@ -1,4 +1,6 @@
 #![feature(let_chains)]
+#![feature(iter_intersperse)]
+#![feature(async_trait_bounds)]
 
 use std::sync::Arc;
 
@@ -13,16 +15,18 @@ mod action;
 mod app;
 mod args;
 mod cbor;
+mod color;
 mod component;
 mod components;
 mod env;
-mod errors;
+mod error;
 mod logging;
+mod rect;
 mod tui;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    crate::errors::init()?;
+    crate::error::init()?;
     let tracing_guard = crate::logging::init()?;
 
     async move {

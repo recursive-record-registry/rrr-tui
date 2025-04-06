@@ -181,7 +181,14 @@ pub fn init() -> Result<TracingGuard> {
     Ok(tracing_guard)
 }
 
-fn with_rest<S>(subscriber: S, tracing_guard: &mut TracingGuard) -> Result<()>
+fn with_rest<S>(
+    subscriber: S,
+    #[cfg_attr(
+        all(not(feature = "opentelemetry"), not(feature = "tracy")),
+        expect(unused_variables)
+    )]
+    tracing_guard: &mut TracingGuard,
+) -> Result<()>
 where
     S: Subscriber + Send + Sync + 'static + SubscriberInitExt + for<'span> LookupSpan<'span>,
 {
@@ -197,4 +204,13 @@ where
 
     subscriber.try_init()?;
     Ok(())
+}
+
+#[macro_export]
+macro_rules! tracing_dbg {
+    ($expr:expr) => {{
+        let result = $expr;
+        ::tracing::debug!(dbg=?result, "tracing_dbg");
+        result
+    }};
 }

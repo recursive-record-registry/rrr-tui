@@ -14,8 +14,8 @@ use crate::{
     action::{Action, ComponentMessage, FocusChange, FocusChangeDirection, FocusChangeScope},
     args::Args,
     component::{
-        self, find_component_by_id_mut, Component, ComponentId, ComponentIdPath,
-        DefaultDrawableComponent, DrawContext, HandleEventSuccess,
+        self, find_component_by_id_mut, ComponentId, ComponentIdPath, DefaultDrawableComponent,
+        DrawContext, HandleEventSuccess,
     },
     components::main_view::MainView,
     tui::{Event, Tui},
@@ -322,22 +322,25 @@ impl App {
         let mut result = Ok(());
         tui.draw(|frame| {
             let area = frame.area();
-            let elapsed_time = self.get_elapsed_time();
+            let (now, elapsed_time) = self.get_elapsed_time();
             result = self.root_component.default_draw(
-                &mut DrawContext::new(frame, self.get_focused_component_id(), elapsed_time),
+                &mut DrawContext::new(frame, self.get_focused_component_id(), now, elapsed_time),
                 area,
             );
         })?;
         result
     }
 
-    fn get_elapsed_time(&mut self) -> Duration {
+    fn get_elapsed_time(&mut self) -> (Instant, Duration) {
         let current_instant = Instant::now();
         if let Some(first_render_instant) = self.first_render_instant.as_ref() {
-            current_instant.duration_since(*first_render_instant)
+            (
+                current_instant,
+                current_instant.duration_since(*first_render_instant),
+            )
         } else {
             self.first_render_instant = Some(current_instant);
-            Duration::ZERO
+            (current_instant, Duration::ZERO)
         }
     }
 

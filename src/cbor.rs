@@ -61,16 +61,16 @@ pub fn cbor_value_to_line(value: &cbor::Value) -> Line {
         return line(
             "array",
             Line::from_iter(
-                array
-                    .iter()
-                    .map(|value| {
+                Iterator::intersperse_with(
+                    array.iter().map(|value| {
                         let mut spans = cbor_value_to_line(value).spans;
                         spans.insert(0, styled("{"));
                         spans.push(styled("}"));
                         spans
-                    })
-                    .intersperse_with(|| vec![Span::raw(" ")])
-                    .flatten(),
+                    }),
+                    || vec![Span::raw(" ")],
+                )
+                .flatten(),
             ),
         );
     }
@@ -79,17 +79,18 @@ pub fn cbor_value_to_line(value: &cbor::Value) -> Line {
         return line(
             "map",
             Line::from_iter(
-                map.iter()
-                    .map(|(key, value)| {
+                Iterator::intersperse_with(
+                    map.iter().map(|(key, value)| {
                         let mut spans = cbor_value_to_line(key).spans;
                         spans.insert(0, styled("{"));
                         spans.push(styled("}: {"));
                         spans.append(&mut cbor_value_to_line(value).spans);
                         spans.push(styled("}"));
                         spans
-                    })
-                    .intersperse_with(|| vec![Span::raw(" ")])
-                    .flatten(),
+                    }),
+                    || vec![Span::raw(" ")],
+                )
+                .flatten(),
             ),
         );
     }

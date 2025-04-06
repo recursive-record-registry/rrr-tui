@@ -1739,6 +1739,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "glam"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8e4afd9ad95555081e109fe1d21f2a30c691b5f0919c67dfa690a2e1eb6bd51c"
+
+[[package]]
 name = "glob"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2248,6 +2254,15 @@ dependencies = [
  "pest",
  "pest_derive",
  "serde",
+]
+
+[[package]]
+name = "kolor"
+version = "0.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "be0b28eb1aad615eb53ab25d3ee308204cfd33b738864bed6ffec1d842e9d92e"
+dependencies = [
+ "glam",
 ]
 
 [[package]]
@@ -2849,7 +2864,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a56d757972c98b346a9b766e3f02746cde6dd1cd1d1d563472929fdd74bec4d"
 dependencies = [
  "anyhow",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "proc-macro2",
  "quote",
  "syn 2.0.90",
@@ -3132,6 +3147,7 @@ dependencies = [
  "human-panic",
  "itertools 0.14.0",
  "json5",
+ "kolor",
  "lazy_static",
  "libc",
  "opentelemetry",
