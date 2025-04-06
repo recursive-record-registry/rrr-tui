@@ -3284,7 +3284,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "rrr-tui-3"
+name = "rrr-tui"
 version = "0.1.0"
 dependencies = [
  "accesskit",
