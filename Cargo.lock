@@ -3271,7 +3271,7 @@ dependencies = [
  "proptest",
  "proptest-arbitrary-interop",
  "proptest-derive",
- "rand 0.9.0",
+ "rand 0.8.5",
  "serde",
  "serde_with",
  "sha2",
