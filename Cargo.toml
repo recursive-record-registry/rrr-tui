@@ -1,7 +1,7 @@
 [package]
 name = "rrr-tui"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 description = "RRR TUI"
 authors = ["Jakub Hlusička <Limeth@users.noreply.github.com>"]
 build = "build.rs"
