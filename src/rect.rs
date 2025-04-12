@@ -3,14 +3,33 @@ use ratatui::{
     widgets::Padding,
 };
 
+#[derive(Default)]
 pub enum LineAlignment {
+    #[default]
     Start,
+    Center,
     End,
 }
 
 pub struct PlaneAlignment {
     pub x: LineAlignment,
     pub y: LineAlignment,
+}
+
+impl PlaneAlignment {
+    pub fn horizontal(horizontal_alignment: LineAlignment) -> Self {
+        Self {
+            x: horizontal_alignment,
+            y: Default::default(),
+        }
+    }
+
+    pub fn vertical(vertical_alignment: LineAlignment) -> Self {
+        Self {
+            x: Default::default(),
+            y: vertical_alignment,
+        }
+    }
 }
 
 pub trait RectExt {
@@ -32,10 +51,12 @@ impl RectExt for Rect {
         Self {
             x: match alignment.x {
                 LineAlignment::Start => self.x,
+                LineAlignment::Center => self.x + self.width.saturating_sub(rect_size.width) / 2,
                 LineAlignment::End => self.x + self.width.saturating_sub(rect_size.width),
             },
             y: match alignment.y {
                 LineAlignment::Start => self.y,
+                LineAlignment::Center => self.y + self.height.saturating_sub(rect_size.height) / 2,
                 LineAlignment::End => self.y + self.height.saturating_sub(rect_size.height),
             },
             width: std::cmp::min(self.width, rect_size.width),

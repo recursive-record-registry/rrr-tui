@@ -49,7 +49,8 @@ tracing-error = "0.2.0"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter", "serde"] }
 tracing-appender = "0.2.3"
 polonius-the-crab = "0.4.2"
-rrr = { git = "https://github.com/recursive-record-registry/rrr.git", rev = "ee09036faea6ce9b0523049a3e1b6c44adadb92f" }
+rrr = { git = "https://github.com/recursive-record-registry/rrr.git", rev = "6f8352238c55c191f28f71d8506b6cce104fc4b5" }
+easing-function = "0.1.1"
 
 # Feature opentelemetry
 opentelemetry-otlp = { version = "0.29.0", optional = true }

@@ -1,31 +1,33 @@
+use core::option::Option::Some;
 use std::cell::RefCell;
 use std::fmt::Display;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-use color_eyre::eyre::{eyre, Result};
+use color_eyre::eyre::{Result, eyre};
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::prelude::*;
 use ratatui::widgets::Table;
 use rrr::record::{
-    HashedRecordKey, RecordKey, RecordName, RecordReadVersionSuccess, SuccessionNonce,
-    RECORD_NAME_ROOT,
+    HashedRecordKey, RECORD_NAME_ROOT, RecordKey, RecordName, RecordReadVersionSuccess,
+    SuccessionNonce,
 };
 use rrr::registry::Registry;
 use rrr::utils::fd_lock::ReadLock;
 use rrr::utils::serde::BytesOrAscii;
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::{debug, info_span, Instrument};
+use tracing::{Instrument, debug, info_span};
 
 use crate::action::{Action, ComponentMessage};
 use crate::args::Args;
 use crate::color::{ColorOklch, TextColor};
 use crate::component::{Component, ComponentId, DrawContext, Drawable, HandleEventSuccess};
 use crate::env::PROJECT_VERSION;
-use crate::tui::Event;
 use crate::error;
+use crate::tui::Event;
 
+use super::button::Button;
 use super::input_field::InputField;
 use super::open_status::{Animation, OpenStatus, SpinnerContent};
 use super::radio_array::RadioArray;
@@ -326,7 +328,13 @@ impl Drawable for MainView {
             .buffer_mut()
             .set_style(area, TextColor::default());
 
-        let [area_header, area_top, area_content, area_bottom, area_footer] = Layout::default()
+        let [
+            area_header,
+            area_top,
+            area_content,
+            area_bottom,
+            area_footer,
+        ] = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(1),
@@ -414,6 +422,7 @@ struct PaneOpen {
     record_name_field: InputField,
     encoding_radio_array: RadioArray<Encoding>,
     status_spinner: OpenStatus<'static>,
+    button: Button,
 }
 
 impl PaneOpen {
@@ -439,6 +448,11 @@ impl PaneOpen {
                 action_tx,
                 SpinnerContent::default(),
             ),
+            button: Button::new(ComponentId::new(), action_tx, "Search".into())
+                .with_form_confirmation(true)
+                .with_text_color_unfocused(TextColor::default().bg(ColorOklch::new(0.2, 0.0, 0.0)))
+                .with_text_color_focused(TextColor::default().bg(ColorOklch::new(0.4, 0.0, 0.0)))
+                .with_text_color_pressed(TextColor::default().bg(ColorOklch::new(0.3, 0.0, 0.0))),
         })
     }
 
@@ -465,7 +479,7 @@ impl PaneOpen {
             .with_text(" Searching… ".into())
             .with_animation(Some(Animation::ProgressIndeterminate {
                 period: Duration::from_secs_f32(0.5),
-                highlight: TextColor::default().bg(ColorOklch::new(0.3, 0.0, 0.0)),
+                highlight: TextColor::default().bg(ColorOklch::new(0.4, 0.0, 0.0)),
             }));
 
         tokio::spawn(
@@ -519,23 +533,47 @@ impl PaneOpen {
 impl Component for PaneOpen {
     fn update(&mut self, message: ComponentMessage) -> Result<Option<Action>> {
         match message {
-            ComponentMessage::RecordOpen {
-                read_result: Some(_),
-                ..
-            } => {
-                self.status_spinner.content = SpinnerContent::default();
-                Ok(Some(Action::Render))
-            }
-            ComponentMessage::RecordOpen {
-                read_result: None, ..
-            } => {
-                self.status_spinner.content = SpinnerContent::default()
-                    .with_text("Record not found".into())
-                    .with_color(TextColor::default().fg(ColorOklch::new(
-                        0.79,
-                        0.1603,
-                        67.76 / 360.0,
-                    )));
+            ComponentMessage::RecordOpen { read_result, .. } => {
+                let now = Instant::now();
+                if read_result.is_some() {
+                    self.record_name_field.reset_content();
+                    self.status_spinner.content = SpinnerContent::default()
+                        .with_text("Record found".into())
+                        .with_animation(Some(Animation::Ease {
+                            easing_function: easing_function::easings::EaseInOutCubic.into(),
+                            color_start: TextColor::default().fg(ColorOklch::new(
+                                0.79,
+                                0.1603,
+                                153.29 / 360.0,
+                            )),
+                            color_end: TextColor::default().fg(ColorOklch::new(
+                                0.5,
+                                0.0,
+                                153.29 / 360.0,
+                            )),
+                            instant_start: now + Duration::from_secs_f32(0.25),
+                            instant_end: now + Duration::from_secs_f32(1.0),
+                        }));
+                } else {
+                    self.status_spinner.content = SpinnerContent::default()
+                        .with_text("Record not found".into())
+                        .with_animation(Some(Animation::Ease {
+                            easing_function: easing_function::easings::EaseInOutCubic.into(),
+                            color_start: TextColor::default().fg(ColorOklch::new(
+                                0.79,
+                                0.1603,
+                                67.76 / 360.0,
+                            )),
+                            color_end: TextColor::default().fg(ColorOklch::new(
+                                0.5,
+                                0.0,
+                                67.76 / 360.0,
+                            )),
+                            instant_start: now + Duration::from_secs_f32(0.25),
+                            instant_end: now + Duration::from_secs_f32(1.0),
+                        }));
+                }
+
                 Ok(Some(Action::Render))
             }
             _ => Ok(None),
@@ -551,6 +589,16 @@ impl Component for PaneOpen {
                 ..
             }) => {
                 self.spawn_open_record_task();
+                self.button.held_down = true;
+                Ok(HandleEventSuccess::handled().with_action(Action::Render))
+            }
+            Event::Key(KeyEvent {
+                code: KeyCode::Enter,
+                kind: KeyEventKind::Release,
+                ..
+            })
+            | Event::FocusLost => {
+                self.button.held_down = false;
                 Ok(HandleEventSuccess::handled().with_action(Action::Render))
             }
             _ => Ok(HandleEventSuccess::unhandled()),
@@ -562,11 +610,21 @@ impl Component for PaneOpen {
     }
 
     fn get_children(&self) -> Vec<&dyn Component> {
-        vec![&self.record_name_field, &self.encoding_radio_array]
+        vec![
+            &self.record_name_field,
+            &self.encoding_radio_array,
+            &self.status_spinner,
+            &self.button,
+        ]
     }
 
     fn get_children_mut(&mut self) -> Vec<&mut dyn Component> {
-        vec![&mut self.record_name_field, &mut self.encoding_radio_array]
+        vec![
+            &mut self.record_name_field,
+            &mut self.encoding_radio_array,
+            &mut self.status_spinner,
+            &mut self.button,
+        ]
     }
 }
 
@@ -623,6 +681,7 @@ impl Drawable for PaneOpen {
             .render_widget(Span::raw("Encoding"), area_encoding_label);
         self.encoding_radio_array
             .draw(context, area_encoding_field, ())?;
+        self.button.draw(context, area_button, ())?;
 
         Ok(())
     }

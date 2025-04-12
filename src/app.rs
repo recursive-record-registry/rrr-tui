@@ -5,7 +5,7 @@ use std::{
 };
 
 use color_eyre::Result;
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::prelude::Rect;
 use tokio::sync::mpsc;
 use tracing::instrument;
@@ -14,8 +14,8 @@ use crate::{
     action::{Action, ComponentMessage, FocusChange, FocusChangeDirection, FocusChangeScope},
     args::Args,
     component::{
-        self, find_component_by_id_mut, ComponentId, ComponentIdPath, DefaultDrawableComponent,
-        DrawContext, HandleEventSuccess,
+        self, ComponentId, ComponentIdPath, DefaultDrawableComponent, DrawContext,
+        HandleEventSuccess, find_component_by_id_mut,
     },
     components::main_view::MainView,
     tui::{Event, Tui},
@@ -160,11 +160,13 @@ impl App {
             KeyEvent {
                 code: KeyCode::Char('c' | 'd'),
                 modifiers: KeyModifiers::CONTROL,
+                kind: KeyEventKind::Press,
                 ..
             } => Some(Action::Quit),
             KeyEvent {
                 code: code @ (KeyCode::Tab | KeyCode::BackTab),
                 modifiers: modifiers @ (KeyModifiers::NONE | KeyModifiers::SHIFT),
+                kind: KeyEventKind::Press | KeyEventKind::Repeat,
                 ..
             } => Some(Action::FocusChange(FocusChange {
                 direction: if (modifiers != KeyModifiers::NONE) || (code == KeyCode::BackTab) {
@@ -177,6 +179,7 @@ impl App {
             KeyEvent {
                 code: code @ (KeyCode::Up | KeyCode::Down | KeyCode::Left | KeyCode::Right),
                 modifiers: KeyModifiers::ALT,
+                kind: KeyEventKind::Press | KeyEventKind::Repeat,
                 ..
             } => Some(Action::FocusChange(FocusChange {
                 direction: if code == KeyCode::Down || code == KeyCode::Right {

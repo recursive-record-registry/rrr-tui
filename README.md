@@ -6,9 +6,7 @@ RRR TUI
 
 ## TODO
 * [ ] Record opening
-    * [ ] Form handling
-        * [x] Bottom-up event propagation until absorbed
-        * [ ] Form component
-    * [ ] Progress bar / async task?
-        * [ ] Async loading of root record
-* [ ] Scrollable pane component
+    * [ ] Disable form elements while a record is being searched for
+* [ ] Record content viewer
+    * [ ] Word wrapping
+    * [ ] Scrollable pane component

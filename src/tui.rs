@@ -1,7 +1,7 @@
 #![allow(dead_code)] // Remove this once you start using the code
 
 use std::{
-    io::{stdout, Stdout},
+    io::{Stdout, stdout},
     ops::{Deref, DerefMut},
     time::Duration,
 };
@@ -21,10 +21,10 @@ use serde::{Deserialize, Serialize};
 use tokio::{
     sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
     task::JoinHandle,
-    time::{interval, MissedTickBehavior},
+    time::{MissedTickBehavior, interval},
 };
 use tokio_util::sync::CancellationToken;
-use tracing::{error, Instrument};
+use tracing::{Instrument, error};
 
 /// Backend-generated events.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -137,13 +137,12 @@ impl Tui {
                 _ = render_interval.tick() => Event::Render,
                 crossterm_event = event_stream.next().fuse() => match crossterm_event {
                     Some(Ok(event)) => match event {
-                        CrosstermEvent::Key(key) if key.kind == KeyEventKind::Press => Event::Key(key),
+                        CrosstermEvent::Key(key) => Event::Key(key),
                         CrosstermEvent::Mouse(mouse) => Event::Mouse(mouse),
                         CrosstermEvent::Resize(x, y) => Event::Resize(x, y),
                         CrosstermEvent::FocusLost => Event::FocusLost,
                         CrosstermEvent::FocusGained => Event::FocusGained,
                         CrosstermEvent::Paste(s) => Event::Paste(s),
-                        _ => continue, // ignore other events
                     }
                     Some(Err(_)) => Event::Error,
                     None => break, // the event stream has stopped and will not produce any more events

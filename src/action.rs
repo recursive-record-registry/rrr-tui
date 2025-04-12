@@ -12,6 +12,9 @@ pub enum ComponentMessage {
         id: ComponentId,
         new_value: bool,
     },
+    OnButtonPress {
+        id: ComponentId,
+    },
     ShowError {
         error: String,
     },

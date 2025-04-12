@@ -170,6 +170,11 @@ impl InputField {
     pub fn get_content(&self) -> &str {
         &self.content
     }
+
+    pub fn reset_content(&mut self) {
+        self.content = "".into();
+        self.cursor = Cursor::default();
+    }
 }
 
 impl Component for InputField {

@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::time::{Duration, Instant};
 
 use color_eyre::eyre::Result;
+use easing_function::{Easing, EasingFunction};
 use ratatui::layout::{Position, Rect, Size};
 use ratatui::text::Span;
 use ratatui::widgets::Padding;
@@ -19,6 +20,7 @@ pub enum Animation {
         highlight: TextColor,
     },
     Ease {
+        easing_function: EasingFunction,
         instant_start: Instant,
         instant_end: Instant,
         color_start: TextColor,
@@ -42,6 +44,7 @@ impl Animation {
                 }
             }
             Animation::Ease {
+                easing_function,
                 instant_start,
                 instant_end,
                 color_start,
@@ -55,8 +58,9 @@ impl Animation {
                     let period = instant_end.duration_since(*instant_start).as_secs_f32();
                     let elapsed = context.now().duration_since(*instant_start).as_secs_f32();
                     let normalized = elapsed / period;
+                    let eased = easing_function.ease(normalized);
 
-                    Lerp::lerp(color_start, color_end, normalized)
+                    Lerp::lerp(color_start, color_end, eased)
                 };
 
                 context.frame().buffer_mut().set_style(area, style);
