@@ -9,6 +9,10 @@ build = "build.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[profile.release-with-debug]
+inherits = "release"
+debug = true
+
 [features]
 default = []
 opentelemetry = ["dep:opentelemetry", "opentelemetry-otlp", "tracing-opentelemetry", "opentelemetry_sdk"]
