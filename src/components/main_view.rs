@@ -244,8 +244,13 @@ impl MainView {
             .render_widget(Span::raw("Record [C]ontent"), area_title);
 
         if let Some(opened_record) = self.state.borrow().opened_record.as_ref() {
+            let data_string = String::from_utf8_lossy(&opened_record.record.data);
+            let lines = textwrap::wrap(
+                data_string.as_ref(),
+                textwrap::Options::new(area.width as usize),
+            );
             context.frame().render_widget(
-                Text::raw(String::from_utf8_lossy(&opened_record.record.data)), // TODO: Other formats
+                Text::from_iter(lines).style(Style::default()), // TODO: Other formats
                 area_content,
             );
         }
