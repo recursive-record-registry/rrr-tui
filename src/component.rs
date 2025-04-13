@@ -6,10 +6,11 @@ use std::{
 };
 
 use color_eyre::Result;
-use ratatui::{layout::Rect, Frame};
+use ratatui::{Frame, layout::Rect};
 
 use crate::{
     action::{Action, ComponentMessage},
+    layout::TaffyNodeData,
     tui::Event,
 };
 
@@ -24,7 +25,7 @@ mod id {
     static ID_COUNTER: AtomicU64 = AtomicU64::new(1);
 
     #[derive(PartialEq, Eq, Clone, Copy, Debug, Hash)]
-    pub struct ComponentId(u64);
+    pub struct ComponentId(pub(crate) u64);
 
     impl Default for ComponentId {
         fn default() -> Self {
@@ -225,6 +226,22 @@ pub trait Component: Debug {
 
         ControlFlow::Continue(())
     }
+
+    fn get_taffy_node_data(&self) -> &TaffyNodeData {
+        todo!()
+    }
+
+    fn get_taffy_node_data_mut(&mut self) -> &mut TaffyNodeData {
+        todo!()
+    }
+
+    fn measure(
+        &self,
+        known_dimensions: taffy::Size<Option<f32>>,
+        available_space: taffy::Size<taffy::AvailableSpace>,
+    ) -> taffy::Size<f32> {
+        todo!()
+    }
 }
 
 #[derive(Debug)]
@@ -398,6 +415,34 @@ pub fn depth_first_search_mut<'a, B: 'a>(
     }
     (visit_postorder)(unsafe { &mut *subtree_root_ptr })?;
     ControlFlow::Continue(())
+}
+
+pub fn find_component_by_id(
+    subtree_root: &dyn Component,
+    id: ComponentId,
+) -> Option<(&dyn Component, ComponentIdPath)> {
+    let path = RefCell::new(ComponentIdPath::default());
+    let component = depth_first_search(
+        subtree_root,
+        &mut |component| {
+            path.borrow_mut().push(component.get_id());
+            if component.get_id() == id {
+                return ControlFlow::Break(component);
+            }
+            ControlFlow::Continue(())
+        },
+        &mut |_| {
+            path.borrow_mut().pop();
+            ControlFlow::Continue(())
+        },
+    )
+    .break_value()?;
+
+    let mut path = path.into_inner();
+
+    path.0.remove(0);
+
+    Some((component, path))
 }
 
 pub fn find_component_by_id_mut(

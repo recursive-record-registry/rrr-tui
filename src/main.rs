@@ -7,7 +7,7 @@ use std::sync::Arc;
 use args::Args;
 use clap::Parser;
 use color_eyre::Result;
-use tracing::{debug, Instrument};
+use tracing::{Instrument, debug};
 
 use crate::app::App;
 
@@ -20,6 +20,7 @@ mod component;
 mod components;
 mod env;
 mod error;
+mod layout;
 mod logging;
 mod rect;
 mod tui;
