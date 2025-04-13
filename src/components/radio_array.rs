@@ -8,6 +8,7 @@ use crate::{
     action::{Action, ComponentMessage},
     component::{Component, ComponentId, DrawContext, Drawable},
     components::checkbox::Checkbox,
+    layout::TaffyNodeData,
 };
 
 #[derive(Debug, Clone)]
@@ -16,6 +17,7 @@ where
     T: ToString + Clone + PartialEq + Debug,
 {
     id: ComponentId,
+    taffy_node_data: TaffyNodeData,
     items: Vec<(T, Checkbox)>,
     checked_index: usize,
     layout_direction: Direction,
@@ -43,6 +45,7 @@ where
             .unwrap();
         Self {
             id,
+            taffy_node_data: Default::default(),
             items: items
                 .into_iter()
                 .enumerate()
@@ -142,6 +145,14 @@ where
         }
 
         ControlFlow::Continue(())
+    }
+
+    fn get_taffy_node_data(&self) -> &TaffyNodeData {
+        &self.taffy_node_data
+    }
+
+    fn get_taffy_node_data_mut(&mut self) -> &mut TaffyNodeData {
+        &mut self.taffy_node_data
     }
 }
 

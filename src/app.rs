@@ -7,6 +7,7 @@ use std::{
 use color_eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::prelude::Rect;
+use taffy::AvailableSpace;
 use tokio::sync::mpsc;
 use tracing::instrument;
 
@@ -18,11 +19,13 @@ use crate::{
         HandleEventSuccess, find_component_by_id_mut,
     },
     components::main_view::MainView,
+    layout::{self, LayoutExt, PositionExt},
     tui::{Event, Tui},
 };
 
 #[derive(Debug)]
 pub struct App {
+    args: Arc<Args>,
     tick_rate: f64,
     frame_rate: f64,
     should_quit: bool,
@@ -40,6 +43,7 @@ impl App {
     pub async fn new(args: &Arc<Args>) -> Result<Self> {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
         let mut app = Self {
+            args: args.clone(),
             tick_rate: args.tick_rate,
             frame_rate: args.frame_rate,
             should_quit: false,
@@ -193,6 +197,24 @@ impl App {
                     FocusChangeScope::Horizontal
                 },
             })),
+            #[cfg(feature = "debug")]
+            KeyEvent {
+                code: KeyCode::F(2),
+                kind: KeyEventKind::Press,
+                ..
+            } => {
+                layout::trace_tree(&self.root_component, ComponentId::root().into());
+                None
+            }
+            #[cfg(feature = "debug")]
+            KeyEvent {
+                code: KeyCode::F(4),
+                kind: KeyEventKind::Press,
+                ..
+            } => {
+                layout::trace_tree_custom(&*self.root_component);
+                None
+            }
             _ => None,
         };
         if let Some(action) = action {
@@ -324,8 +346,29 @@ impl App {
     fn render(&mut self, tui: &mut Tui) -> Result<()> {
         let mut result = Ok(());
         tui.draw(|frame| {
-            let area = frame.area();
+            let mut area = frame.area();
+
+            if let Some(force_max_width) = self.args.force_max_width.as_ref() {
+                area.width = std::cmp::min(area.width, *force_max_width);
+            }
+
+            if let Some(force_max_height) = self.args.force_max_height.as_ref() {
+                area.height = std::cmp::min(area.height, *force_max_height);
+            }
+
+            taffy::compute_root_layout(
+                &mut self.root_component,
+                ComponentId::root().into(),
+                taffy::Size::<AvailableSpace> {
+                    width: (area.width as f32).into(),
+                    height: (area.height as f32).into(),
+                },
+            );
+            taffy::round_layout(&mut self.root_component, ComponentId::root().into());
+            layout::compute_absolute_layout(&mut *self.root_component, area);
+
             let (now, elapsed_time) = self.get_elapsed_time();
+
             result = self.root_component.default_draw(
                 &mut DrawContext::new(frame, self.get_focused_component_id(), now, elapsed_time),
                 area,

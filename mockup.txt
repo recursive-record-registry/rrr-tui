@@ -102,3 +102,65 @@ RRR-TUI v0.1.0                                          [S]ettings [H]elp [Q]uit
 ▄█▀░▒▓┬┐┌─┴┘└│┼┤├╦╗╔═╩╝╚║╬╣╠
 
 █▄▀██  ▄█▄▀ ▀▄█ ▄██▀▄▄█▄ ▄██▀ ▀▄ ▄▄█▀▄▄█▀█▀▄▄    ██▀▀█ ▄▀▀  ▄██ ██▄▄   █▄▄   ▄▀█▀  █▄▄▀▄ ▄▄██   ▄▀▀▀▄▀▀ █ ▄ ▄█▄▄█▀
+
+RRR TUI v0.1.0
+[T]ree──▛Record [M]etadata▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▜[O]verview──────
+        ▌Created At       datetime 1970-01-01T00:00:00+00:00   ▐
+        ▌                                                      ▐
+        ▌                                                      ▐
+        ▌                                                      ▐
+        ▌                                                      ▐
+        ▌                                                      ▐
+────────▙Record [C]ontent▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▟────────────────
+It works!
+
+Welcome to an example Recursive Record Registry. Feel free to customize it to
+your needs!
+
+
+
+
+
+
+
+
+
+
+
+
+
+─────────Open Sub-Record [Enter]────────────────────────────────────────────────
+Record Name                                                         Record found
+Encoding    (x) UTF-8  ( ) Hexadecimal Byte String                  Search      
+────────────────────────────────────────────────────────────────────────────────
+
+RRR TUI v0.1.0
+[T]ree──█Record [M]etadata▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀█[O]verview──────
+        █Created At       datetime 1970-01-01T00:00:00+00:00   █
+        █                                                      █
+        █                                                      █
+        █                                                      █
+        █                                                      █
+        █                                                      █
+────────█Record [C]ontent▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄█────────────────
+It works!
+
+Welcome to an example Recursive Record Registry. Feel free to customize it to
+your needs!
+
+
+
+
+
+
+
+
+
+
+
+
+
+─────────Open Sub-Record [Enter]────────────────────────────────────────────────
+Record Name                                                         Record found
+Encoding    (x) UTF-8  ( ) Hexadecimal Byte String                  Search      
+────────────────────────────────────────────────────────────────────────────────

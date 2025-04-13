@@ -197,6 +197,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d902e3d592a523def97af8f317b08ce16b7ab854c1985a0c671e6f15cebc236"
 
 [[package]]
+name = "arrayvec"
+version = "0.7.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50"
+
+[[package]]
 name = "async-fd-lock"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -624,6 +630,12 @@ dependencies = [
  "once_cell",
  "tiny-keccak",
 ]
+
+[[package]]
+name = "const_panic"
+version = "0.2.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2459fc9262a1aa204eb4b5764ad4f189caec88aea9634389c0a25f8be7f6265e"
 
 [[package]]
 name = "convert_case"
@@ -2068,6 +2080,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8d1add55171497b4705a648c6b583acafb01d58050a51727785f0b2c8e0a2b2"
 
 [[package]]
+name = "grid"
+version = "0.16.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fb6ae361963ea5fe52038156ea1729f3b4e4ccc0711c362ab2b2d2c0a259e7c3"
+
+[[package]]
 name = "half"
 version = "2.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2606,6 +2624,33 @@ checksum = "be0b28eb1aad615eb53ab25d3ee308204cfd33b738864bed6ffec1d842e9d92e"
 dependencies = [
  "glam",
 ]
+
+[[package]]
+name = "konst"
+version = "0.3.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4381b9b00c55f251f2ebe9473aef7c117e96828def1a7cb3bd3f0f903c6894e9"
+dependencies = [
+ "const_panic",
+ "konst_kernel",
+ "konst_proc_macros",
+ "typewit",
+]
+
+[[package]]
+name = "konst_kernel"
+version = "0.3.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e4b1eb7788f3824c629b1116a7a9060d6e898c358ebff59070093d51103dcc3c"
+dependencies = [
+ "typewit",
+]
+
+[[package]]
+name = "konst_proc_macros"
+version = "0.3.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "00af7901ba50898c9e545c24d5c580c96a982298134e8037d8978b6594782c07"
 
 [[package]]
 name = "kstring"
@@ -3523,6 +3568,7 @@ dependencies = [
  "itertools 0.14.0",
  "json5",
  "kolor",
+ "konst",
  "lazy_static",
  "libc",
  "opentelemetry",
@@ -3537,6 +3583,7 @@ dependencies = [
  "signal-hook",
  "strip-ansi-escapes",
  "strum 0.27.1",
+ "taffy",
  "textwrap",
  "tokio",
  "tokio-util",
@@ -3840,6 +3887,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "slotmap"
+version = "1.0.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dbff4acf519f630b3a3ddcfaea6c06b42174d9a44bc70c620e9ed1649d58b82a"
+dependencies = [
+ "version_check",
+]
+
+[[package]]
 name = "smallvec"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4011,6 +4067,18 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.100",
+]
+
+[[package]]
+name = "taffy"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56a844965df28147d726ecc321bf67f287a9bdec5a655f53d4e7e5cad20443dc"
+dependencies = [
+ "arrayvec",
+ "grid",
+ "serde",
+ "slotmap",
 ]
 
 [[package]]
@@ -4462,6 +4530,21 @@ name = "typenum"
 version = "1.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1dccffe3ce07af9386bfd29e80c0ab1a8205a2fc34e4bcd40364df902cfa8f3f"
+
+[[package]]
+name = "typewit"
+version = "1.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb77c29baba9e4d3a6182d51fa75e3215c7fd1dab8f4ea9d107c716878e55fc0"
+dependencies = [
+ "typewit_proc_macros",
+]
+
+[[package]]
+name = "typewit_proc_macros"
+version = "1.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e36a83ea2b3c704935a01b4642946aadd445cea40b10935e3f8bd8052b8193d6"
 
 [[package]]
 name = "ucd-trie"
