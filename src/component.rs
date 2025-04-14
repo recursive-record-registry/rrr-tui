@@ -257,7 +257,7 @@ pub trait Component: Debug {
 }
 
 pub trait ComponentExt {
-    fn with_style(self, style: taffy::Style) -> Self
+    fn with_style(self, f: impl FnOnce(taffy::Style) -> taffy::Style) -> Self
     where
         Self: Sized;
 
@@ -266,8 +266,9 @@ pub trait ComponentExt {
 }
 
 impl<T: Component> ComponentExt for T {
-    fn with_style(mut self, style: taffy::Style) -> Self {
-        self.get_taffy_node_data_mut().style = style;
+    fn with_style(mut self, f: impl FnOnce(taffy::Style) -> taffy::Style) -> Self {
+        let style = &mut self.get_taffy_node_data_mut().style;
+        *style = (f)(style.clone());
         self
     }
 

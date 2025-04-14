@@ -96,23 +96,23 @@ impl PaneOpen {
                 action_tx,
                 "Record Name".into(),
             )
-            .with_style(taffy::Style {
+            .with_style(|style| taffy::Style {
                 grid_row: taffy::prelude::line(1),
                 grid_column: taffy::prelude::line(1),
-                ..Default::default()
+                ..style
             }),
-            record_name_field: InputField::new(ComponentId::new(), action_tx).with_style(
+            record_name_field: InputField::new(ComponentId::new(), action_tx).with_style(|style| {
                 taffy::Style {
                     grid_row: taffy::prelude::line(1),
                     grid_column: taffy::prelude::line(2),
-                    ..Default::default()
-                },
-            ),
+                    ..style
+                }
+            }),
             encoding_label: StyledWidget::new(ComponentId::new(), action_tx, "Encoding".into())
-                .with_style(taffy::Style {
+                .with_style(|style| taffy::Style {
                     grid_row: taffy::prelude::line(2),
                     grid_column: taffy::prelude::line(1),
-                    ..Default::default()
+                    ..style
                 }),
             encoding_radio_array: RadioArray::new(
                 ComponentId::new(),
@@ -121,30 +121,30 @@ impl PaneOpen {
                 &Encoding::Utf8,
                 Direction::Horizontal,
             )
-            .with_style(taffy::Style {
+            .with_style(|style| taffy::Style {
                 grid_row: taffy::prelude::line(2),
                 grid_column: taffy::prelude::line(2),
-                ..Default::default()
+                ..style
             }),
             status_spinner: OpenStatus::new(
                 ComponentId::new(),
                 action_tx,
                 SpinnerContent::default(),
             )
-            .with_style(taffy::Style {
+            .with_style(|style| taffy::Style {
                 grid_row: taffy::prelude::line(1),
                 grid_column: taffy::prelude::line(3),
-                ..Default::default()
+                ..style
             }),
             button: Button::new(ComponentId::new(), action_tx, "Search".into())
                 .with_form_confirmation(true)
                 .with_text_color_unfocused(TextColor::default().bg(ColorOklch::new(0.2, 0.0, 0.0)))
                 .with_text_color_focused(TextColor::default().bg(ColorOklch::new(0.4, 0.0, 0.0)))
                 .with_text_color_pressed(TextColor::default().bg(ColorOklch::new(0.3, 0.0, 0.0)))
-                .with_style(taffy::Style {
+                .with_style(|style| taffy::Style {
                     grid_row: taffy::prelude::line(2),
                     grid_column: taffy::prelude::line(3),
-                    ..Default::default()
+                    ..style
                 }),
         })
     }

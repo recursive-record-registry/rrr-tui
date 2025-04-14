@@ -51,10 +51,9 @@ where
                     Direction::Horizontal => taffy::FlexDirection::Row,
                     Direction::Vertical => taffy::FlexDirection::Column,
                 },
-                // TODO: Doesn't work
                 gap: taffy::Size {
                     width: taffy::prelude::length(2.0),
-                    height: taffy::prelude::length(0.0),
+                    height: taffy::prelude::zero(),
                 },
                 ..Default::default()
             }),
@@ -186,23 +185,7 @@ where
             return Ok(());
         }
 
-        let (areas, _) = Layout::new(
-            self.layout_direction,
-            self.items.iter().map(|(_, checkbox)| {
-                let size = checkbox.size();
-                match self.layout_direction {
-                    Direction::Horizontal => size.width,
-                    Direction::Vertical => size.height,
-                }
-            }),
-        )
-        .spacing(match self.layout_direction {
-            Direction::Horizontal => 2,
-            Direction::Vertical => 0,
-        })
-        .split_with_spacers(area);
-
-        for ((_, checkbox), checkbox_area) in self.items.iter().zip(areas.iter()) {
+        for (_, checkbox) in self.items.iter() {
             checkbox.default_draw(context)?;
         }
 
