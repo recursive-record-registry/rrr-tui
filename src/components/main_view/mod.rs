@@ -189,18 +189,18 @@ impl MainView {
             args: args.clone(),
             state,
             placeholder_top: LayoutPlaceholder::new(ComponentId::new(), action_tx).with_style(
-                taffy::Style {
+                |style| taffy::Style {
                     flex_grow: 1.0,
-                    ..Default::default()
+                    ..style
                 },
             ),
             placeholder_footer: LayoutPlaceholder::new(ComponentId::new(), action_tx).with_style(
-                taffy::Style {
+                |style| taffy::Style {
                     size: taffy::Size {
                         height: Dimension::length(1.0),
                         width: Dimension::percent(1.0),
                     },
-                    ..Default::default()
+                    ..style
                 },
             ),
             pane_open,
