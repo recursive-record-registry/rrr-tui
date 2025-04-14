@@ -21,6 +21,19 @@ impl From<taffy::NodeId> for ComponentId {
     }
 }
 
+pub trait SizeExt {
+    fn into_taffy<T: From<u16>>(self) -> taffy::Size<T>;
+}
+
+impl SizeExt for ratatui::layout::Size {
+    fn into_taffy<T: From<u16>>(self) -> taffy::Size<T> {
+        taffy::Size {
+            width: self.width.into(),
+            height: self.height.into(),
+        }
+    }
+}
+
 pub trait PositionExt {
     fn as_offset(self) -> Offset;
 }
@@ -102,6 +115,7 @@ pub struct TaffyNodeData {
     cache: taffy::Cache,
     detailed_grid_info: Option<taffy::DetailedGridInfo>,
     absolute_layout: AbsoluteLayout,
+    cache_dirty: bool,
 }
 
 impl TaffyNodeData {
@@ -114,6 +128,15 @@ impl TaffyNodeData {
 
     pub fn absolute_layout(&self) -> &AbsoluteLayout {
         &self.absolute_layout
+    }
+
+    pub fn mark_cached_layout_dirty(&mut self) {
+        self.cache_dirty = true;
+    }
+
+    fn clear_cache(&mut self) {
+        self.cache.clear();
+        self.cache_dirty = false;
     }
 }
 
@@ -383,6 +406,24 @@ impl LayoutGridContainer for Box<dyn DefaultDrawableComponent> {
     }
 }
 
+pub fn clear_dirty_cache(root_component: &mut dyn DefaultDrawableComponent) {
+    let _ = component::depth_first_search_with_data_mut::<(), (), bool>(
+        root_component,
+        &(),
+        &mut |_, _| ControlFlow::Continue(()),
+        &mut |component, children_dirty| {
+            let dirty =
+                children_dirty.contains(&true) || component.get_taffy_node_data().cache_dirty;
+
+            if dirty {
+                component.get_taffy_node_data_mut().clear_cache();
+            }
+
+            ControlFlow::Continue(dirty)
+        },
+    );
+}
+
 pub fn compute_absolute_layout(
     root_component: &mut dyn DefaultDrawableComponent,
     frame_area: Rect,
@@ -403,7 +444,7 @@ pub fn compute_absolute_layout(
             absolute_layout.border_rect = layout
                 .border_rect()
                 .offset(parent_area.as_position().as_offset());
-            ControlFlow::Continue(absolute_layout.content_rect)
+            ControlFlow::Continue(absolute_layout.padding_rect)
         },
         &mut |_, _| ControlFlow::Continue(()),
     );

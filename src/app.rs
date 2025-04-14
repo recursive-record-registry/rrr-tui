@@ -356,6 +356,7 @@ impl App {
                 area.height = std::cmp::min(area.height, *force_max_height);
             }
 
+            layout::clear_dirty_cache(&mut *self.root_component);
             taffy::compute_root_layout(
                 &mut self.root_component,
                 ComponentId::root().into(),
@@ -369,10 +370,12 @@ impl App {
 
             let (now, elapsed_time) = self.get_elapsed_time();
 
-            result = self.root_component.default_draw(
-                &mut DrawContext::new(frame, self.get_focused_component_id(), now, elapsed_time),
-                area,
-            );
+            result = self.root_component.default_draw(&mut DrawContext::new(
+                frame,
+                self.get_focused_component_id(),
+                now,
+                elapsed_time,
+            ));
         })?;
         result
     }

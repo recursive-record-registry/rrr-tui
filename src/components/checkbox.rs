@@ -11,8 +11,8 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     action::{Action, ComponentMessage},
-    component::{Component, ComponentId, DrawContext, Drawable, HandleEventSuccess},
-    layout::TaffyNodeData,
+    component::{Component, ComponentExt, ComponentId, DrawContext, Drawable, HandleEventSuccess},
+    layout::{SizeExt, TaffyNodeData},
     tui::Event,
 };
 
@@ -112,6 +112,14 @@ impl Component for Checkbox {
     fn get_taffy_node_data_mut(&mut self) -> &mut TaffyNodeData {
         &mut self.taffy_node_data
     }
+
+    fn measure(
+        &self,
+        _known_dimensions: taffy::Size<Option<f32>>,
+        _available_space: taffy::Size<taffy::AvailableSpace>,
+    ) -> taffy::Size<f32> {
+        self.size().into_taffy()
+    }
 }
 
 impl Drawable for Checkbox {
@@ -120,10 +128,12 @@ impl Drawable for Checkbox {
     where
         Self: 'a;
 
-    fn draw<'a>(&self, context: &mut DrawContext, mut area: Rect, (): Self::Args<'a>) -> Result<()>
+    fn draw<'a>(&self, context: &mut DrawContext, (): Self::Args<'a>) -> Result<()>
     where
         Self: 'a,
     {
+        let mut area = self.absolute_layout().content_rect();
+
         if area.area() == 0 {
             return Ok(());
         }

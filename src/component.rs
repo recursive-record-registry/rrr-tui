@@ -10,7 +10,7 @@ use ratatui::{Frame, layout::Rect};
 
 use crate::{
     action::{Action, ComponentMessage},
-    layout::TaffyNodeData,
+    layout::{AbsoluteLayout, TaffyNodeData},
     tui::Event,
 };
 
@@ -260,12 +260,23 @@ pub trait ComponentExt {
     fn with_style(self, style: taffy::Style) -> Self
     where
         Self: Sized;
+
+    fn absolute_layout(&self) -> &AbsoluteLayout;
+    fn mark_cached_layout_dirty(&mut self);
 }
 
 impl<T: Component> ComponentExt for T {
     fn with_style(mut self, style: taffy::Style) -> Self {
         self.get_taffy_node_data_mut().style = style;
         self
+    }
+
+    fn absolute_layout(&self) -> &AbsoluteLayout {
+        self.get_taffy_node_data().absolute_layout()
+    }
+
+    fn mark_cached_layout_dirty(&mut self) {
+        self.get_taffy_node_data_mut().mark_cached_layout_dirty();
     }
 }
 
@@ -318,19 +329,14 @@ pub trait Drawable {
     where
         Self: 'a;
 
-    fn draw<'a>(
-        &self,
-        context: &mut DrawContext,
-        area: Rect,
-        extra_args: Self::Args<'a>,
-    ) -> Result<()>
+    fn draw<'a>(&self, context: &mut DrawContext, extra_args: Self::Args<'a>) -> Result<()>
     where
         Self: 'a;
 }
 
 /// A drawable element that takes no extra arguments for drawing.
 pub trait DefaultDrawable {
-    fn default_draw(&self, context: &mut DrawContext, area: Rect) -> Result<()>;
+    fn default_draw(&self, context: &mut DrawContext) -> Result<()>;
 }
 
 impl<T> DefaultDrawable for T
@@ -338,8 +344,8 @@ where
     T: Drawable,
     for<'a> <T as Drawable>::Args<'a>: Default,
 {
-    fn default_draw(&self, context: &mut DrawContext, area: Rect) -> Result<()> {
-        self.draw(context, area, Default::default())
+    fn default_draw(&self, context: &mut DrawContext) -> Result<()> {
+        self.draw(context, Default::default())
     }
 }
 

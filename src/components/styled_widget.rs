@@ -10,7 +10,7 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     action::Action,
-    component::{Component, ComponentId, Drawable},
+    component::{Component, ComponentExt, ComponentId, Drawable},
     layout::{LayoutExt, TaffyNodeData},
 };
 
@@ -82,13 +82,12 @@ where
     fn draw<'a>(
         &self,
         context: &mut crate::component::DrawContext,
-        _: ratatui::prelude::Rect,
         (): Self::Args<'a>,
     ) -> Result<()>
     where
         Self: 'a,
     {
-        let area = self.taffy_node_data.absolute_layout().content_rect();
+        let area = self.absolute_layout().content_rect();
         self.widget.render_ref(area, context.frame().buffer_mut());
         Ok(())
     }

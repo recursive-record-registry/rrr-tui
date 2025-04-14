@@ -6,9 +6,9 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     action::{Action, ComponentMessage},
-    component::{Component, ComponentId, DrawContext, Drawable},
+    component::{Component, ComponentExt, ComponentId, DefaultDrawable, DrawContext, Drawable},
     components::checkbox::Checkbox,
-    layout::TaffyNodeData,
+    layout::{AbsoluteLayout, TaffyNodeData},
 };
 
 #[derive(Debug, Clone)]
@@ -45,7 +45,19 @@ where
             .unwrap();
         Self {
             id,
-            taffy_node_data: Default::default(),
+            taffy_node_data: TaffyNodeData::new(taffy::Style {
+                display: taffy::Display::Flex,
+                flex_direction: match layout_direction {
+                    Direction::Horizontal => taffy::FlexDirection::Row,
+                    Direction::Vertical => taffy::FlexDirection::Column,
+                },
+                // TODO: Doesn't work
+                gap: taffy::Size {
+                    width: taffy::prelude::length(2.0),
+                    height: taffy::prelude::length(0.0),
+                },
+                ..Default::default()
+            }),
             items: items
                 .into_iter()
                 .enumerate()
@@ -165,10 +177,11 @@ where
     where
         Self: 'a;
 
-    fn draw<'a>(&self, context: &mut DrawContext, area: Rect, (): Self::Args<'a>) -> Result<()>
+    fn draw<'a>(&self, context: &mut DrawContext, (): Self::Args<'a>) -> Result<()>
     where
         Self: 'a,
     {
+        let area = self.absolute_layout().content_rect();
         if area.area() == 0 {
             return Ok(());
         }
@@ -190,7 +203,7 @@ where
         .split_with_spacers(area);
 
         for ((_, checkbox), checkbox_area) in self.items.iter().zip(areas.iter()) {
-            checkbox.draw(context, *checkbox_area, ())?;
+            checkbox.default_draw(context)?;
         }
 
         Ok(())

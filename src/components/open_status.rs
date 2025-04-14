@@ -10,7 +10,7 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::action::Action;
 use crate::color::{Lerp, TextColor};
-use crate::component::{Component, ComponentId, DrawContext, Drawable};
+use crate::component::{Component, ComponentExt, ComponentId, DrawContext, Drawable};
 use crate::layout::TaffyNodeData;
 use crate::rect::{LineAlignment, PlaneAlignment, RectExt};
 
@@ -73,7 +73,6 @@ impl Animation {
 #[derive(Debug)]
 pub struct SpinnerContent<'a> {
     pub text: Cow<'a, str>,
-    pub padding: Padding,
     pub animation: Option<Animation>,
     pub color: TextColor,
 }
@@ -82,7 +81,6 @@ impl<'a> Default for SpinnerContent<'a> {
     fn default() -> Self {
         Self {
             text: "".into(),
-            padding: Default::default(),
             animation: Default::default(),
             color: Default::default(),
         }
@@ -92,10 +90,6 @@ impl<'a> Default for SpinnerContent<'a> {
 impl<'a> SpinnerContent<'a> {
     pub fn with_text(self, text: Cow<'a, str>) -> Self {
         Self { text, ..self }
-    }
-
-    pub fn with_padding(self, padding: Padding) -> Self {
-        Self { padding, ..self }
     }
 
     pub fn with_animation(self, animation: Option<Animation>) -> Self {
@@ -111,7 +105,7 @@ impl<'a> SpinnerContent<'a> {
 pub struct OpenStatus<'a> {
     pub id: ComponentId,
     pub taffy_node_data: TaffyNodeData,
-    pub content: SpinnerContent<'a>,
+    content: SpinnerContent<'a>,
 }
 
 impl<'a> OpenStatus<'a> {
@@ -124,6 +118,11 @@ impl<'a> OpenStatus<'a> {
             taffy_node_data: Default::default(),
             content,
         }
+    }
+
+    pub fn set_content(&mut self, content: SpinnerContent<'a>) {
+        self.content = content;
+        self.mark_cached_layout_dirty();
     }
 }
 
@@ -139,6 +138,17 @@ impl<'a> Component for OpenStatus<'a> {
     fn get_taffy_node_data_mut(&mut self) -> &mut TaffyNodeData {
         &mut self.taffy_node_data
     }
+
+    fn measure(
+        &self,
+        _known_dimensions: taffy::Size<Option<f32>>,
+        _available_space: taffy::Size<taffy::AvailableSpace>,
+    ) -> taffy::Size<f32> {
+        taffy::Size {
+            width: Span::raw(self.content.text.as_ref()).width() as f32,
+            height: 1.0,
+        }
+    }
 }
 
 impl<'a> Drawable for OpenStatus<'a> {
@@ -147,14 +157,16 @@ impl<'a> Drawable for OpenStatus<'a> {
     where
         Self: 'b;
 
-    fn draw<'b>(&self, context: &mut DrawContext, mut area: Rect, (): Self::Args<'b>) -> Result<()>
+    fn draw<'b>(&self, context: &mut DrawContext, (): Self::Args<'b>) -> Result<()>
     where
         Self: 'b,
     {
-        area = area.without_padding(self.content.padding);
+        let padding_area = self.absolute_layout().padding_rect();
+        let content_area = self.absolute_layout().content_rect();
+        // area = area.without_padding(self.content.padding);
         let line = Span::styled(self.content.text.as_ref(), &self.content.color);
         let width = line.width() as u16;
-        area = area.align(
+        let area = content_area.align(
             Size::new(width, 1),
             PlaneAlignment {
                 x: LineAlignment::End,
@@ -165,7 +177,7 @@ impl<'a> Drawable for OpenStatus<'a> {
         context.frame().render_widget(line, area);
 
         if let Some(animation) = self.content.animation.as_ref() {
-            animation.apply(context, area);
+            animation.apply(context, padding_area);
         }
 
         Ok(())
