@@ -1,11 +1,13 @@
-use std::ops::ControlFlow;
+use std::{fmt::Write, ops::ControlFlow};
 
+use ratatui::layout::{Offset, Position, Rect};
 use taffy::{
     CacheTree, LayoutBlockContainer, LayoutFlexboxContainer, LayoutGridContainer,
-    LayoutPartialTree, TraversePartialTree, TraverseTree,
+    LayoutPartialTree, PrintTree, RoundTree, TraversePartialTree, TraverseTree,
 };
+use tracing::Level;
 
-use crate::component::{self, Component, ComponentId, DefaultDrawableComponent, Drawable};
+use crate::component::{self, ComponentId, DefaultDrawableComponent};
 
 impl From<ComponentId> for taffy::NodeId {
     fn from(value: ComponentId) -> Self {
@@ -19,11 +21,100 @@ impl From<taffy::NodeId> for ComponentId {
     }
 }
 
+pub trait PositionExt {
+    fn as_offset(self) -> Offset;
+}
+
+impl PositionExt for Position {
+    fn as_offset(self) -> Offset {
+        Offset {
+            x: self.x as i32,
+            y: self.y as i32,
+        }
+    }
+}
+
+pub trait LayoutExt {
+    fn content_rect(self) -> Rect;
+    fn padding_rect(self) -> Rect;
+    fn border_rect(self) -> Rect;
+}
+
+impl LayoutExt for taffy::Layout {
+    fn content_rect(self) -> Rect {
+        Rect {
+            x: self.content_box_x() as u16,
+            y: self.content_box_y() as u16,
+            width: self.content_box_width() as u16,
+            height: self.content_box_height() as u16,
+        }
+    }
+
+    fn padding_rect(self) -> Rect {
+        Rect {
+            x: (self.location.x + self.border.left) as u16,
+            y: (self.location.y + self.border.top) as u16,
+            width: (self.size.width - self.border.left - self.border.right) as u16,
+            height: (self.size.height - self.border.top - self.border.bottom) as u16,
+        }
+    }
+
+    fn border_rect(self) -> Rect {
+        Rect {
+            x: self.location.x as u16,
+            y: self.location.y as u16,
+            width: self.size.width as u16,
+            height: self.size.height as u16,
+        }
+    }
+}
+
+/// An absolute-positioned layout.
+#[derive(Default, Debug, Clone)]
+pub struct AbsoluteLayout {
+    /// The rectangle containing the content.
+    pub(self) content_rect: Rect,
+    /// The rectangle containing the padding, and the content.
+    pub(self) padding_rect: Rect,
+    /// The outermost rectangle containing the border, the padding, and the content.
+    pub(self) border_rect: Rect,
+}
+
+impl AbsoluteLayout {
+    pub fn content_rect(&self) -> Rect {
+        self.content_rect
+    }
+
+    pub fn padding_rect(&self) -> Rect {
+        self.padding_rect
+    }
+
+    pub fn border_rect(&self) -> Rect {
+        self.border_rect
+    }
+}
+
+#[derive(Default, Debug, Clone)]
 pub struct TaffyNodeData {
-    pub core_style: taffy::Style,
-    pub unrounded_layout: taffy::Layout,
-    pub cache: taffy::Cache,
-    pub detailed_grid_info: taffy::DetailedGridInfo,
+    pub style: taffy::Style,
+    unrounded_layout: taffy::Layout,
+    rounded_layout: taffy::Layout,
+    cache: taffy::Cache,
+    detailed_grid_info: Option<taffy::DetailedGridInfo>,
+    absolute_layout: AbsoluteLayout,
+}
+
+impl TaffyNodeData {
+    pub fn new(style: taffy::Style) -> Self {
+        Self {
+            style,
+            ..Default::default()
+        }
+    }
+
+    pub fn absolute_layout(&self) -> &AbsoluteLayout {
+        &self.absolute_layout
+    }
 }
 
 impl TraversePartialTree for Box<dyn DefaultDrawableComponent> {
@@ -83,6 +174,18 @@ impl TraversePartialTree for Box<dyn DefaultDrawableComponent> {
 
 impl TraverseTree for Box<dyn DefaultDrawableComponent> {}
 
+impl PrintTree for Box<dyn DefaultDrawableComponent> {
+    fn get_debug_label(&self, node_id: taffy::NodeId) -> &'static str {
+        let (node, _) = component::find_component_by_id(self.as_ref(), node_id.into()).unwrap();
+        node.get_debug_label()
+    }
+
+    fn get_final_layout(&self, node_id: taffy::NodeId) -> &taffy::Layout {
+        let (node, _) = component::find_component_by_id(self.as_ref(), node_id.into()).unwrap();
+        &node.get_taffy_node_data().rounded_layout
+    }
+}
+
 impl CacheTree for Box<dyn DefaultDrawableComponent> {
     fn cache_get(
         &self,
@@ -126,6 +229,18 @@ impl CacheTree for Box<dyn DefaultDrawableComponent> {
     }
 }
 
+impl RoundTree for Box<dyn DefaultDrawableComponent> {
+    fn get_unrounded_layout(&self, node_id: taffy::NodeId) -> &taffy::Layout {
+        let (node, _) = component::find_component_by_id(self.as_ref(), node_id.into()).unwrap();
+        &node.get_taffy_node_data().unrounded_layout
+    }
+
+    fn set_final_layout(&mut self, node_id: taffy::NodeId, layout: &taffy::Layout) {
+        let (node, _) = component::find_component_by_id_mut(self.as_mut(), node_id.into()).unwrap();
+        node.get_taffy_node_data_mut().rounded_layout = *layout;
+    }
+}
+
 impl LayoutPartialTree for Box<dyn DefaultDrawableComponent> {
     type CoreContainerStyle<'a>
         = &'a taffy::Style
@@ -134,7 +249,7 @@ impl LayoutPartialTree for Box<dyn DefaultDrawableComponent> {
 
     fn get_core_container_style(&self, node_id: taffy::NodeId) -> Self::CoreContainerStyle<'_> {
         let (node, _) = component::find_component_by_id(self.as_ref(), node_id.into()).unwrap();
-        &node.get_taffy_node_data().core_style
+        &node.get_taffy_node_data().style
     }
 
     fn set_unrounded_layout(&mut self, node_id: taffy::NodeId, layout: &taffy::Layout) {
@@ -162,7 +277,7 @@ impl LayoutPartialTree for Box<dyn DefaultDrawableComponent> {
             let (node, _) =
                 component::find_component_by_id_mut(tree.as_mut(), node_id.into()).unwrap();
             let has_children = !node.get_children().is_empty();
-            let display_mode = node.get_taffy_node_data().core_style.display;
+            let display_mode = node.get_taffy_node_data().style.display;
 
             // Dispatch to a layout algorithm based on the node's display style and whether the node has children or not.
             match (display_mode, has_children) {
@@ -173,7 +288,7 @@ impl LayoutPartialTree for Box<dyn DefaultDrawableComponent> {
                 }
                 (taffy::Display::Grid, true) => taffy::compute_grid_layout(tree, node_id, inputs),
                 (_, false) => {
-                    let style = &node.get_taffy_node_data().core_style;
+                    let style = &node.get_taffy_node_data().style;
                     let measure_function = |known_dimensions, available_space| {
                         node.measure(known_dimensions, available_space)
                     };
@@ -223,14 +338,14 @@ impl LayoutFlexboxContainer for Box<dyn DefaultDrawableComponent> {
         node_id: taffy::NodeId,
     ) -> Self::FlexboxContainerStyle<'_> {
         let (node, _) = component::find_component_by_id(self.as_ref(), node_id.into()).unwrap();
-        &node.get_taffy_node_data().core_style
+        &node.get_taffy_node_data().style
     }
 
     #[inline(always)]
     fn get_flexbox_child_style(&self, child_node_id: taffy::NodeId) -> Self::FlexboxItemStyle<'_> {
         let (node, _) =
             component::find_component_by_id(self.as_ref(), child_node_id.into()).unwrap();
-        &node.get_taffy_node_data().core_style
+        &node.get_taffy_node_data().style
     }
 }
 
@@ -247,14 +362,14 @@ impl LayoutGridContainer for Box<dyn DefaultDrawableComponent> {
     #[inline(always)]
     fn get_grid_container_style(&self, node_id: taffy::NodeId) -> Self::GridContainerStyle<'_> {
         let (node, _) = component::find_component_by_id(self.as_ref(), node_id.into()).unwrap();
-        &node.get_taffy_node_data().core_style
+        &node.get_taffy_node_data().style
     }
 
     #[inline(always)]
     fn get_grid_child_style(&self, child_node_id: taffy::NodeId) -> Self::GridItemStyle<'_> {
         let (node, _) =
             component::find_component_by_id(self.as_ref(), child_node_id.into()).unwrap();
-        &node.get_taffy_node_data().core_style
+        &node.get_taffy_node_data().style
     }
 
     #[inline(always)]
@@ -264,6 +379,173 @@ impl LayoutGridContainer for Box<dyn DefaultDrawableComponent> {
         detailed_grid_info: taffy::DetailedGridInfo,
     ) {
         let (node, _) = component::find_component_by_id_mut(self.as_mut(), node_id.into()).unwrap();
-        node.get_taffy_node_data_mut().detailed_grid_info = detailed_grid_info;
+        node.get_taffy_node_data_mut().detailed_grid_info = Some(detailed_grid_info);
     }
+}
+
+pub fn compute_absolute_layout(
+    root_component: &mut dyn DefaultDrawableComponent,
+    frame_area: Rect,
+) {
+    let _ = component::depth_first_search_with_data_mut::<(), Rect, ()>(
+        root_component,
+        &frame_area,
+        &mut |component, parent_area| {
+            let taffy_node_data = component.get_taffy_node_data_mut();
+            let layout = &taffy_node_data.rounded_layout;
+            let absolute_layout = &mut taffy_node_data.absolute_layout;
+            absolute_layout.content_rect = layout
+                .content_rect()
+                .offset(parent_area.as_position().as_offset());
+            absolute_layout.padding_rect = layout
+                .padding_rect()
+                .offset(parent_area.as_position().as_offset());
+            absolute_layout.border_rect = layout
+                .border_rect()
+                .offset(parent_area.as_position().as_offset());
+            ControlFlow::Continue(absolute_layout.content_rect)
+        },
+        &mut |_, _| ControlFlow::Continue(()),
+    );
+}
+
+#[cfg(feature = "debug")]
+pub fn trace_tree_custom(root: &dyn DefaultDrawableComponent) {
+    struct PreorderData {
+        lines: String,
+        last_child_id: ComponentId,
+        first: bool,
+    }
+
+    let init = PreorderData {
+        lines: "".to_string(),
+        last_child_id: root.get_id(),
+        first: true,
+    };
+    let mut buffer_string = String::new();
+    let _ = component::depth_first_search_with_data::<(), PreorderData, ()>(
+        root,
+        &init,
+        &mut |component, preorder_data| {
+            let taffy_node_data = component.get_taffy_node_data();
+            let rounded_layout = &taffy_node_data.rounded_layout;
+            let absolute_layout = &taffy_node_data.absolute_layout;
+            writeln! {
+                &mut buffer_string,
+                "{lines}{fork}{label} [ xr: {xr}, yr: {yr}, xa: {xa}, ya: {ya}, w: {w}, h: {h} ]",
+                lines = preorder_data.lines,
+                label = component.get_debug_label(),
+                fork = if preorder_data.first {
+                    ""
+                } else if component.get_id() == preorder_data.last_child_id {
+                    "└──"
+                } else {
+                    "├──"
+                },
+                xr = rounded_layout.location.x,
+                yr = rounded_layout.location.y,
+                xa = absolute_layout.border_rect.x,
+                ya = absolute_layout.border_rect.y,
+                w = absolute_layout.border_rect.width,
+                h = absolute_layout.border_rect.height,
+            }
+            .unwrap();
+            ControlFlow::Continue(PreorderData {
+                lines: format! {
+                    "{lines}{bar}",
+                    lines = preorder_data.lines,
+                    bar = if preorder_data.first {
+                        ""
+                    } else if component.get_id() == preorder_data.last_child_id {
+                        "    "
+                    } else {
+                        "│   "
+                    }
+                },
+                last_child_id: component
+                    .get_children()
+                    .last()
+                    .map(|component| component.get_id())
+                    .unwrap_or_default(),
+                first: false,
+            })
+        },
+        &mut |_, _| ControlFlow::Continue(()),
+    );
+
+    tracing::trace!("\n{buffer_string}");
+}
+
+/// Based on `taffy::print_tree`.
+#[cfg(feature = "debug")]
+pub fn trace_tree(tree: &impl PrintTree, root: taffy::NodeId) {
+    let mut buffer_string = "\nTREE\n".to_string();
+    print_node(tree, root, false, String::new(), &mut buffer_string).unwrap();
+
+    /// Recursive function that prints each node in the tree
+    fn print_node(
+        tree: &impl PrintTree,
+        node_id: taffy::NodeId,
+        has_sibling: bool,
+        lines_string: String,
+        buffer_string: &mut String,
+    ) -> std::fmt::Result {
+        let layout = &tree.get_final_layout(node_id);
+        let display2: &'static str = tree.get_debug_label(node_id);
+        let num_children = tree.child_count(node_id);
+
+        let fork_string = if has_sibling {
+            "├──"
+        } else {
+            "└──"
+        };
+        #[cfg(feature = "debug_layout_content_size")]
+        writeln!(
+            buffer_string,
+            "{lines}{fork} {display} [x: {x} y: {y} w: {width} h: {height} content_w: {content_width} content_h: {content_height} border: l:{bl} r:{br} t:{bt} b:{bb}, padding: l:{pl} r:{pr} t:{pt} b:{pb}] ({key:?})",
+            lines = lines_string,
+            fork = fork_string,
+            display = display2,
+            x = layout.location.x,
+            y = layout.location.y,
+            width = layout.size.width,
+            height = layout.size.height,
+            content_width = layout.content_size.width,
+            content_height = layout.content_size.height,
+            bl = layout.border.left,
+            br = layout.border.right,
+            bt = layout.border.top,
+            bb = layout.border.bottom,
+            pl = layout.padding.left,
+            pr = layout.padding.right,
+            pt = layout.padding.top,
+            pb = layout.padding.bottom,
+            key = node_id,
+        )?;
+        #[cfg(not(feature = "debug_layout_content_size"))]
+        writeln!(
+            buffer_string,
+            "{lines}{fork} {display} [x: {x} y: {y} width: {width} height: {height}] ({key:?})",
+            lines = lines_string,
+            fork = fork_string,
+            display = display2,
+            x = layout.location.x,
+            y = layout.location.y,
+            width = layout.size.width,
+            height = layout.size.height,
+            key = node_id,
+        )?;
+        let bar = if has_sibling { "│   " } else { "    " };
+        let new_string = lines_string + bar;
+
+        // Recurse into children
+        for (index, child) in tree.child_ids(node_id).enumerate() {
+            let has_sibling = index < num_children - 1;
+            print_node(tree, child, has_sibling, new_string.clone(), buffer_string)?;
+        }
+
+        Ok(())
+    }
+
+    tracing::trace!("{}", buffer_string);
 }

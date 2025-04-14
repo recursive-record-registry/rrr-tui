@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{any::type_name, borrow::Cow};
 
 use color_eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
@@ -13,6 +13,7 @@ use crate::{
     action::{Action, ComponentMessage},
     color::TextColor,
     component::{Component, ComponentId, DrawContext, Drawable, HandleEventSuccess},
+    layout::TaffyNodeData,
     rect::{LineAlignment, PlaneAlignment, RectExt},
     tui::Event,
 };
@@ -20,6 +21,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct Button {
     pub id: ComponentId,
+    pub taffy_node_data: TaffyNodeData,
     pub label: Cow<'static, str>,
     pub action_tx: UnboundedSender<Action>,
     pub text_color_unfocused: TextColor,
@@ -37,6 +39,7 @@ impl Button {
     {
         Self {
             id,
+            taffy_node_data: Default::default(),
             label,
             text_color_unfocused: Default::default(),
             text_color_focused: Default::default(),
@@ -107,7 +110,6 @@ impl Component for Button {
             })
             | Event::FocusLost => {
                 self.held_down = false;
-                tracing::debug!("RELEASE");
                 HandleEventSuccess::handled().with_action(Action::Render)
             }
             _ => HandleEventSuccess::unhandled(),
@@ -120,6 +122,25 @@ impl Component for Button {
 
     fn get_accessibility_node(&self) -> Result<accesskit::Node> {
         todo!()
+    }
+
+    fn get_taffy_node_data(&self) -> &TaffyNodeData {
+        &self.taffy_node_data
+    }
+
+    fn get_taffy_node_data_mut(&mut self) -> &mut TaffyNodeData {
+        &mut self.taffy_node_data
+    }
+
+    fn measure(
+        &self,
+        _known_dimensions: taffy::Size<Option<f32>>,
+        _available_space: taffy::Size<taffy::AvailableSpace>,
+    ) -> taffy::Size<f32> {
+        taffy::Size {
+            width: Span::raw(self.label.as_ref()).width() as f32,
+            height: 1.0,
+        }
     }
 }
 

@@ -11,6 +11,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::action::Action;
 use crate::color::{Lerp, TextColor};
 use crate::component::{Component, ComponentId, DrawContext, Drawable};
+use crate::layout::TaffyNodeData;
 use crate::rect::{LineAlignment, PlaneAlignment, RectExt};
 
 #[derive(Debug)]
@@ -109,6 +110,7 @@ impl<'a> SpinnerContent<'a> {
 #[derive(Debug)]
 pub struct OpenStatus<'a> {
     pub id: ComponentId,
+    pub taffy_node_data: TaffyNodeData,
     pub content: SpinnerContent<'a>,
 }
 
@@ -117,13 +119,25 @@ impl<'a> OpenStatus<'a> {
     where
         Self: Sized,
     {
-        Self { id, content }
+        Self {
+            id,
+            taffy_node_data: Default::default(),
+            content,
+        }
     }
 }
 
 impl<'a> Component for OpenStatus<'a> {
     fn get_id(&self) -> ComponentId {
         self.id
+    }
+
+    fn get_taffy_node_data(&self) -> &TaffyNodeData {
+        &self.taffy_node_data
+    }
+
+    fn get_taffy_node_data_mut(&mut self) -> &mut TaffyNodeData {
+        &mut self.taffy_node_data
     }
 }
 

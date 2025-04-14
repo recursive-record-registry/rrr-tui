@@ -173,6 +173,8 @@ impl HandleEventSuccess {
 ///
 /// Implementors of this trait can be registered with the main application loop and will be able to
 /// receive events, update state, and be rendered on the screen.
+///
+/// A component's layout is computed using the advanced layouting engine Taffy.
 pub trait Component: Debug {
     /// Handle events when focused.
     fn handle_event(&mut self, _event: &Event) -> Result<HandleEventSuccess> {
@@ -227,20 +229,43 @@ pub trait Component: Debug {
         ControlFlow::Continue(())
     }
 
-    fn get_taffy_node_data(&self) -> &TaffyNodeData {
-        todo!()
-    }
+    fn get_taffy_node_data(&self) -> &TaffyNodeData;
 
-    fn get_taffy_node_data_mut(&mut self) -> &mut TaffyNodeData {
-        todo!()
-    }
+    fn get_taffy_node_data_mut(&mut self) -> &mut TaffyNodeData;
 
     fn measure(
         &self,
-        known_dimensions: taffy::Size<Option<f32>>,
-        available_space: taffy::Size<taffy::AvailableSpace>,
+        _known_dimensions: taffy::Size<Option<f32>>,
+        _available_space: taffy::Size<taffy::AvailableSpace>,
     ) -> taffy::Size<f32> {
-        todo!()
+        Default::default()
+    }
+
+    fn get_debug_label(&self) -> &'static str {
+        // std::any::type_name::<Self>()
+
+        // Strip the first absolute path.
+        let type_name = std::any::type_name::<Self>();
+        let len = type_name.find(['<', '>']).unwrap_or(type_name.len());
+        let start_index = type_name[0..len]
+            .rfind("::")
+            .map(|index| index + 2)
+            .unwrap_or(0);
+
+        &type_name[start_index..]
+    }
+}
+
+pub trait ComponentExt {
+    fn with_style(self, style: taffy::Style) -> Self
+    where
+        Self: Sized;
+}
+
+impl<T: Component> ComponentExt for T {
+    fn with_style(mut self, style: taffy::Style) -> Self {
+        self.get_taffy_node_data_mut().style = style;
+        self
     }
 }
 
@@ -415,6 +440,54 @@ pub fn depth_first_search_mut<'a, B: 'a>(
     }
     (visit_postorder)(unsafe { &mut *subtree_root_ptr })?;
     ControlFlow::Continue(())
+}
+
+pub fn depth_first_search_with_data<'a, B: 'a, C1, C2>(
+    subtree_root: &'a dyn Component,
+    init: &C1,
+    visit_preorder: &mut dyn FnMut(&'a dyn Component, &C1) -> ControlFlow<B, C1>,
+    visit_postorder: &mut dyn FnMut(&'a dyn Component, Vec<C2>) -> ControlFlow<B, C2>,
+) -> ControlFlow<B, C2> {
+    let preorder_data = (visit_preorder)(subtree_root, init)?;
+    let mut postorder_data_vec = Vec::<C2>::new();
+    if let Some(break_value) = for_each_child::<B>(subtree_root, |child| {
+        let postorder_data =
+            depth_first_search_with_data(child, &preorder_data, visit_preorder, visit_postorder)?;
+        postorder_data_vec.push(postorder_data);
+        ControlFlow::Continue(())
+    }) {
+        return ControlFlow::Break(break_value);
+    }
+    (visit_postorder)(subtree_root, postorder_data_vec)
+}
+
+pub fn depth_first_search_with_data_mut<'a, B: 'a, C1, C2>(
+    subtree_root: &'a mut dyn Component,
+    init: &C1,
+    visit_preorder: &mut dyn FnMut(&'a mut dyn Component, &C1) -> ControlFlow<B, C1>,
+    visit_postorder: &mut dyn FnMut(&'a mut dyn Component, Vec<C2>) -> ControlFlow<B, C2>,
+) -> ControlFlow<B, C2> {
+    // Safety:
+    // No aliased mutable references actually occur, because the try-operator (`?`) is used to
+    // return `ControlFlow::<B>::Break` early.
+    // This seems like a case where the Polonius-based borrowck would be required to avoid the use
+    // of `unsafe`.
+    let subtree_root_ptr = subtree_root as *mut dyn Component;
+    let preorder_data = (visit_preorder)(unsafe { &mut *subtree_root_ptr }, init)?;
+    let mut postorder_data_vec = Vec::<C2>::new();
+    if let Some(break_value) = for_each_child_mut::<B>(unsafe { &mut *subtree_root_ptr }, |child| {
+        let postorder_data = depth_first_search_with_data_mut(
+            child,
+            &preorder_data,
+            visit_preorder,
+            visit_postorder,
+        )?;
+        postorder_data_vec.push(postorder_data);
+        ControlFlow::Continue(())
+    }) {
+        return ControlFlow::Break(break_value);
+    }
+    (visit_postorder)(unsafe { &mut *subtree_root_ptr }, postorder_data_vec)
 }
 
 pub fn find_component_by_id(

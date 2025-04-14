@@ -1,6 +1,7 @@
 #![feature(let_chains)]
 #![feature(iter_intersperse)]
 #![feature(async_trait_bounds)]
+#![feature(const_type_name)]
 
 use std::sync::Arc;
 

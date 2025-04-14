@@ -12,6 +12,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::{
     action::Action,
     component::{Component, ComponentId, DrawContext, Drawable, HandleEventSuccess},
+    layout::TaffyNodeData,
     tui::Event,
 };
 
@@ -70,9 +71,10 @@ impl TryFrom<KeyCode> for CursorMoveDirection {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct InputField {
     id: ComponentId,
+    taffy_node_data: TaffyNodeData,
     cursor: Cursor,
     content: String,
 }
@@ -84,6 +86,7 @@ impl InputField {
     {
         Self {
             id,
+            taffy_node_data: Default::default(),
             cursor: Cursor::default(),
             content: String::new(),
         }
@@ -264,6 +267,14 @@ impl Component for InputField {
 
     fn get_id(&self) -> ComponentId {
         self.id
+    }
+
+    fn get_taffy_node_data(&self) -> &TaffyNodeData {
+        &self.taffy_node_data
+    }
+
+    fn get_taffy_node_data_mut(&mut self) -> &mut TaffyNodeData {
+        &mut self.taffy_node_data
     }
 }
 

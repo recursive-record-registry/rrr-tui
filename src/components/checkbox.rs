@@ -12,12 +12,14 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::{
     action::{Action, ComponentMessage},
     component::{Component, ComponentId, DrawContext, Drawable, HandleEventSuccess},
+    layout::TaffyNodeData,
     tui::Event,
 };
 
 #[derive(Debug, Clone)]
 pub struct Checkbox {
     id: ComponentId,
+    taffy_node_data: TaffyNodeData,
     label: Cow<'static, str>,
     pub checked: bool,
     string_checked: Cow<'static, str>,
@@ -37,6 +39,7 @@ impl Checkbox {
     {
         Self {
             id,
+            taffy_node_data: Default::default(),
             label,
             checked,
             string_checked: "[x]".into(),
@@ -100,6 +103,14 @@ impl Component for Checkbox {
 
     fn get_accessibility_node(&self) -> Result<accesskit::Node> {
         todo!()
+    }
+
+    fn get_taffy_node_data(&self) -> &TaffyNodeData {
+        &self.taffy_node_data
+    }
+
+    fn get_taffy_node_data_mut(&mut self) -> &mut TaffyNodeData {
+        &mut self.taffy_node_data
     }
 }
 
