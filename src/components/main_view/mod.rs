@@ -198,7 +198,7 @@ impl MainView {
                 taffy::Style {
                     size: taffy::Size {
                         height: Dimension::length(1.0),
-                        width: Dimension::auto(),
+                        width: Dimension::percent(1.0),
                     },
                     ..Default::default()
                 },
@@ -352,7 +352,7 @@ impl Drawable for MainView {
     where
         Self: 'a;
 
-    fn draw<'a>(&self, context: &mut DrawContext, _: Rect, (): Self::Args<'a>) -> Result<()>
+    fn draw<'a>(&self, context: &mut DrawContext, (): Self::Args<'a>) -> Result<()>
     where
         Self: 'a,
     {
@@ -438,7 +438,7 @@ impl Drawable for MainView {
         self.draw_pane_content(context, area_content, area_metadata.x)?;
         self.pane_open.draw(
             context,
-            area_bottom,
+            // area_bottom,
             PaneOpenArgs {
                 title_offset_x: area_metadata.x,
             },

@@ -12,7 +12,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::{
     action::{Action, ComponentMessage},
     color::TextColor,
-    component::{Component, ComponentId, DrawContext, Drawable, HandleEventSuccess},
+    component::{Component, ComponentExt, ComponentId, DrawContext, Drawable, HandleEventSuccess},
     layout::TaffyNodeData,
     rect::{LineAlignment, PlaneAlignment, RectExt},
     tui::Event,
@@ -91,7 +91,7 @@ impl Component for Button {
 
         Ok(match event {
             Event::Key(KeyEvent {
-                code: KeyCode::Enter,
+                code: KeyCode::Enter | KeyCode::Char(' '),
                 kind: KeyEventKind::Press,
                 ..
             }) => {
@@ -104,7 +104,7 @@ impl Component for Button {
                 HandleEventSuccess::handled().with_action(Action::Render)
             }
             Event::Key(KeyEvent {
-                code: KeyCode::Enter,
+                code: KeyCode::Enter | KeyCode::Char(' '),
                 kind: KeyEventKind::Release,
                 ..
             })
@@ -150,10 +150,12 @@ impl Drawable for Button {
     where
         Self: 'a;
 
-    fn draw<'a>(&self, context: &mut DrawContext, mut area: Rect, (): Self::Args<'a>) -> Result<()>
+    fn draw<'a>(&self, context: &mut DrawContext, (): Self::Args<'a>) -> Result<()>
     where
         Self: 'a,
     {
+        let mut area = self.absolute_layout().content_rect();
+
         if area.area() == 0 {
             return Ok(());
         }

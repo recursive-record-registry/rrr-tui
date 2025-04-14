@@ -34,7 +34,7 @@ use crate::components::radio_array::RadioArray;
 use crate::components::styled_widget::StyledWidget;
 use crate::env::PROJECT_VERSION;
 use crate::error;
-use crate::layout::{LayoutExt, TaffyNodeData};
+use crate::layout::{LayoutExt, SizeExt, TaffyNodeData};
 use crate::tui::Event;
 
 use super::{Encoding, MainState, MainView};
@@ -65,7 +65,8 @@ impl PaneOpen {
                 display: taffy::Display::Grid,
                 size: taffy::Size {
                     width: Dimension::percent(1.0),
-                    height: Dimension::length(3.0),
+                    height: Dimension::auto(),
+                    // height: Dimension::length(3.0),
                 },
                 min_size: taffy::Size {
                     width: Dimension::length(0.0),
@@ -76,11 +77,16 @@ impl PaneOpen {
                     taffy::prelude::auto(),
                     taffy::prelude::min_content(),
                 ],
+                grid_template_rows: vec![taffy::prelude::auto(), taffy::prelude::auto()],
+                gap: taffy::Size {
+                    width: taffy::prelude::length(1.0),
+                    ..taffy::Size::zero()
+                },
+                // This padding is for the pane's title.
                 padding: taffy::Rect {
                     top: taffy::prelude::length(1.0),
                     ..taffy::Rect::zero()
                 },
-                grid_template_rows: vec![taffy::prelude::auto(), taffy::prelude::auto()],
                 ..Default::default()
             }),
             action_tx: action_tx.clone(),
@@ -162,12 +168,14 @@ impl PaneOpen {
         let main_state_clone = self.main_state.borrow().clone();
         let action_tx = self.action_tx.clone();
 
-        self.status_spinner.content = SpinnerContent::default()
-            .with_text(" Searching… ".into())
-            .with_animation(Some(Animation::ProgressIndeterminate {
-                period: Duration::from_secs_f32(0.5),
-                highlight: TextColor::default().bg(ColorOklch::new(0.4, 0.0, 0.0)),
-            }));
+        self.status_spinner.set_content(
+            SpinnerContent::default()
+                .with_text(" Searching… ".into())
+                .with_animation(Some(Animation::ProgressIndeterminate {
+                    period: Duration::from_secs_f32(0.5),
+                    highlight: TextColor::default().bg(ColorOklch::new(0.4, 0.0, 0.0)),
+                })),
+        );
 
         tokio::spawn(
             async move {
@@ -224,41 +232,45 @@ impl Component for PaneOpen {
                 let now = Instant::now();
                 if read_result.is_some() {
                     self.record_name_field.reset_content();
-                    self.status_spinner.content = SpinnerContent::default()
-                        .with_text("Record found".into())
-                        .with_animation(Some(Animation::Ease {
-                            easing_function: easing_function::easings::EaseInOutCubic.into(),
-                            color_start: TextColor::default().fg(ColorOklch::new(
-                                0.79,
-                                0.1603,
-                                153.29 / 360.0,
-                            )),
-                            color_end: TextColor::default().fg(ColorOklch::new(
-                                0.5,
-                                0.0,
-                                153.29 / 360.0,
-                            )),
-                            instant_start: now + Duration::from_secs_f32(0.25),
-                            instant_end: now + Duration::from_secs_f32(1.0),
-                        }));
+                    self.status_spinner.set_content(
+                        SpinnerContent::default()
+                            .with_text("Record found".into())
+                            .with_animation(Some(Animation::Ease {
+                                easing_function: easing_function::easings::EaseInOutCubic.into(),
+                                color_start: TextColor::default().fg(ColorOklch::new(
+                                    0.79,
+                                    0.1603,
+                                    153.29 / 360.0,
+                                )),
+                                color_end: TextColor::default().fg(ColorOklch::new(
+                                    0.5,
+                                    0.0,
+                                    153.29 / 360.0,
+                                )),
+                                instant_start: now + Duration::from_secs_f32(0.25),
+                                instant_end: now + Duration::from_secs_f32(1.0),
+                            })),
+                    );
                 } else {
-                    self.status_spinner.content = SpinnerContent::default()
-                        .with_text("Record not found".into())
-                        .with_animation(Some(Animation::Ease {
-                            easing_function: easing_function::easings::EaseInOutCubic.into(),
-                            color_start: TextColor::default().fg(ColorOklch::new(
-                                0.79,
-                                0.1603,
-                                67.76 / 360.0,
-                            )),
-                            color_end: TextColor::default().fg(ColorOklch::new(
-                                0.5,
-                                0.0,
-                                67.76 / 360.0,
-                            )),
-                            instant_start: now + Duration::from_secs_f32(0.25),
-                            instant_end: now + Duration::from_secs_f32(1.0),
-                        }));
+                    self.status_spinner.set_content(
+                        SpinnerContent::default()
+                            .with_text("Record not found".into())
+                            .with_animation(Some(Animation::Ease {
+                                easing_function: easing_function::easings::EaseInOutCubic.into(),
+                                color_start: TextColor::default().fg(ColorOklch::new(
+                                    0.79,
+                                    0.1603,
+                                    67.76 / 360.0,
+                                )),
+                                color_end: TextColor::default().fg(ColorOklch::new(
+                                    0.5,
+                                    0.0,
+                                    67.76 / 360.0,
+                                )),
+                                instant_start: now + Duration::from_secs_f32(0.25),
+                                instant_end: now + Duration::from_secs_f32(1.0),
+                            })),
+                    );
                 }
 
                 Ok(Some(Action::Render))
@@ -337,12 +349,17 @@ impl Drawable for PaneOpen {
     where
         Self: 'a;
 
-    fn draw<'a>(&self, context: &mut DrawContext, _: Rect, extra_args: Self::Args<'a>) -> Result<()>
+    fn draw<'a>(&self, context: &mut DrawContext, extra_args: Self::Args<'a>) -> Result<()>
     where
         Self: 'a,
     {
         let area = self.taffy_node_data.absolute_layout().padding_rect();
         let (area_title, _) = MainView::pane_areas(area, extra_args.title_offset_x);
+        // tracing::trace!(
+        //     ?area,
+        //     ?area_title,
+        //     c = ?self.absolute_layout().content_rect()
+        // );
 
         context
             .frame()
@@ -365,23 +382,18 @@ impl Drawable for PaneOpen {
         // let [area_encoding_label, area_encoding_field, area_button] =
         //     layout_bottom_lines.areas(area_encoding);
 
-        self.record_name_label
-            .default_draw(context, Default::default())?;
+        self.record_name_label.default_draw(context)?;
         // context
         //     .frame()
         //     .render_widget(Span::raw("Record Name"), area_record_name_label);
-        self.record_name_field
-            .default_draw(context, Default::default())?;
-        self.status_spinner
-            .default_draw(context, Default::default())?;
-        self.encoding_label
-            .default_draw(context, Default::default())?;
+        self.record_name_field.default_draw(context)?;
+        self.status_spinner.default_draw(context)?;
+        self.encoding_label.default_draw(context)?;
         // context
         //     .frame()
         //     .render_widget(Span::raw("Encoding"), area_encoding_label);
-        self.encoding_radio_array
-            .default_draw(context, Default::default())?;
-        self.button.default_draw(context, Default::default())?;
+        self.encoding_radio_array.default_draw(context)?;
+        self.button.default_draw(context)?;
 
         Ok(())
     }
