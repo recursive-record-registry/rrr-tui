@@ -75,7 +75,7 @@ impl PaneOpen {
                 grid_template_columns: vec![
                     taffy::prelude::min_content(),
                     taffy::prelude::auto(),
-                    taffy::prelude::min_content(),
+                    taffy::prelude::length(18.0),
                 ],
                 grid_template_rows: vec![taffy::prelude::auto(), taffy::prelude::auto()],
                 gap: taffy::Size {
@@ -170,7 +170,7 @@ impl PaneOpen {
 
         self.status_spinner.set_content(
             SpinnerContent::default()
-                .with_text(" Searching… ".into())
+                .with_text("Searching…".into())
                 .with_animation(Some(Animation::ProgressIndeterminate {
                     period: Duration::from_secs_f32(0.5),
                     highlight: TextColor::default().bg(ColorOklch::new(0.4, 0.0, 0.0)),

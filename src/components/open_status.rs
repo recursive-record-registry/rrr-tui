@@ -161,7 +161,7 @@ impl<'a> Drawable for OpenStatus<'a> {
     where
         Self: 'b,
     {
-        let padding_area = self.absolute_layout().padding_rect();
+        // let padding_area = self.absolute_layout().padding_rect();
         let content_area = self.absolute_layout().content_rect();
         // area = area.without_padding(self.content.padding);
         let line = Span::styled(self.content.text.as_ref(), &self.content.color);
@@ -177,7 +177,7 @@ impl<'a> Drawable for OpenStatus<'a> {
         context.frame().render_widget(line, area);
 
         if let Some(animation) = self.content.animation.as_ref() {
-            animation.apply(context, padding_area);
+            animation.apply(context, area);
         }
 
         Ok(())
