@@ -25,10 +25,11 @@ use tracing::{Instrument, debug, info_span};
 
 use crate::action::{Action, ComponentMessage};
 use crate::args::Args;
-use crate::color::{ColorOklch, TextColor};
+use crate::color::{ColorOklch, ColorU8Rgb, TextColor};
 use crate::component::{
     Component, ComponentExt, ComponentId, DrawContext, Drawable, HandleEventSuccess,
 };
+use crate::components::text_block::TextBlock;
 use crate::env::PROJECT_VERSION;
 use crate::error;
 use crate::layout::{LayoutExt, TaffyNodeData};
@@ -395,6 +396,36 @@ impl Drawable for MainView {
             .buffer_mut()
             .set_style(area, TextColor::default());
 
+        // let lines = [
+        //     "aasdfsdadfasdhadgfhlafjdghskldfghjkdslsdfsdadfasdhadgfhlafjdghskldfghjkdsl",
+        //     "asdfahjdskflahs",
+        //     "asdf",
+        //     "asdffdhfjaskfldhsaklf",
+        //     "asdfasdfsdadfasdhadgfhlafjdghskldfghjkdsasdfsdadfasdhadgfhlafjdghskldfghjkdsll",
+        //     "asdf",
+        //     "asdf",
+        // ];
+
+        // for (line, y) in lines.into_iter().zip(area.y..) {
+        //     let span = Span::raw(line);
+        //     let rect = Rect {
+        //         x: area.x,
+        //         y,
+        //         width: span.width() as u16,
+        //         height: 1,
+        //     };
+        //     context.frame().render_widget(span, rect);
+        //     context.frame().buffer_mut().set_style(
+        //         rect,
+        //         TextColor {
+        //             fg: ColorU8Rgb::new_f32(1.0, 0.0, 0.0).into(),
+        //             bg: ColorU8Rgb::new_f32(0.0, 0.0, 1.0).into(),
+        //         },
+        //     );
+        // }
+
+        // return Ok(());
+
         let [
             area_header,
             area_top,
@@ -457,7 +488,7 @@ impl Drawable for MainView {
             PaneContentArgs {
                 title_offset_x: area_metadata.x,
             },
-        );
+        )?;
         self.pane_open.draw(
             context,
             // area_bottom,

@@ -71,6 +71,7 @@ kolor = "0.1.9"
 textwrap = "0.16.2"
 taffy = "0.8.0"
 konst = "0.3.16"
+num-traits = "0.2.19"
 
 [build-dependencies]
 anyhow = "1.0"

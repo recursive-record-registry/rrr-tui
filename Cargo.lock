@@ -3571,6 +3571,7 @@ dependencies = [
  "konst",
  "lazy_static",
  "libc",
+ "num-traits",
  "opentelemetry",
  "opentelemetry-otlp",
  "opentelemetry_sdk",

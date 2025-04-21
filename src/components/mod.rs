@@ -7,3 +7,4 @@ pub mod open_status;
 pub mod radio_array;
 pub mod scroll_pane;
 pub mod styled_widget;
+pub mod text_block;

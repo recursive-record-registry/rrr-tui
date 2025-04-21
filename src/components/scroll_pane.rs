@@ -1,9 +1,10 @@
+use color_eyre::eyre::Result;
 use taffy::{Dimension, Overflow};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     action::Action,
-    component::{Component, ComponentId, DefaultDrawableComponent},
+    component::{Component, ComponentId, DefaultDrawableComponent, Drawable},
     layout::TaffyNodeData,
 };
 
@@ -58,5 +59,26 @@ where
 
     fn get_children_mut(&mut self) -> Vec<&mut dyn Component> {
         vec![&mut self.child]
+    }
+}
+
+impl<T> Drawable for ScrollPane<T>
+where
+    T: DefaultDrawableComponent,
+{
+    type Args<'a>
+        = ()
+    where
+        Self: 'a;
+
+    fn draw<'a>(
+        &self,
+        context: &mut crate::component::DrawContext,
+        extra_args: Self::Args<'a>,
+    ) -> Result<()>
+    where
+        Self: 'a,
+    {
+        self.child.default_draw(context)
     }
 }

@@ -12,7 +12,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::{
     action::{Action, ComponentMessage},
     component::{Component, ComponentExt, ComponentId, DrawContext, Drawable, HandleEventSuccess},
-    layout::{SizeExt, TaffyNodeData},
+    layout::{TaffyNodeData, ext::ratatui::SizeExt},
     tui::Event,
 };
 
