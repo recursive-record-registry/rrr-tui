@@ -5,4 +5,5 @@ pub mod layout_placeholder;
 pub mod main_view;
 pub mod open_status;
 pub mod radio_array;
+pub mod scroll_pane;
 pub mod styled_widget;

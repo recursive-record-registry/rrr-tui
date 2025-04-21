@@ -8,5 +8,5 @@ RRR TUI
 * [ ] Record opening
     * [ ] Disable form elements while a record is being searched for
 * [ ] Record content viewer
-    * [ ] Word wrapping
+    * [x] Word wrapping
     * [ ] Scrollable pane component
