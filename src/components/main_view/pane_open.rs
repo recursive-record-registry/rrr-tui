@@ -34,7 +34,7 @@ use crate::components::radio_array::RadioArray;
 use crate::components::styled_widget::StyledWidget;
 use crate::env::PROJECT_VERSION;
 use crate::error;
-use crate::layout::{LayoutExt, SizeExt, TaffyNodeData};
+use crate::layout::{LayoutExt, TaffyNodeData, ext::ratatui::SizeExt};
 use crate::tui::Event;
 
 use super::{Encoding, MainState, MainView};

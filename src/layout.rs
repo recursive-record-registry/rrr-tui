@@ -1,6 +1,7 @@
 use std::{fmt::Write, ops::ControlFlow};
 
-use ratatui::layout::{Offset, Position, Rect};
+use ext::RoundSizeExt;
+use ratatui::layout::{Offset, Position, Rect, Size};
 use taffy::{
     CacheTree, LayoutBlockContainer, LayoutFlexboxContainer, LayoutGridContainer,
     LayoutPartialTree, PrintTree, RoundTree, TraversePartialTree, TraverseTree,
@@ -8,6 +9,60 @@ use taffy::{
 use tracing::Level;
 
 use crate::component::{self, ComponentId, DefaultDrawableComponent};
+
+pub mod ext {
+    pub mod ratatui {
+        pub trait SizeExt {
+            fn into_taffy<T: From<u16>>(self) -> taffy::Size<T>;
+        }
+
+        impl SizeExt for ratatui::layout::Size {
+            fn into_taffy<T: From<u16>>(self) -> ::taffy::Size<T> {
+                ::taffy::Size {
+                    width: self.width.into(),
+                    height: self.height.into(),
+                }
+            }
+        }
+    }
+
+    pub mod taffy {
+        pub trait SizeExt<T> {
+            fn into_ratatui(self) -> ::ratatui::layout::Size;
+        }
+
+        impl<T> SizeExt<T> for ::taffy::Size<T>
+        where
+            T: Into<u16>,
+        {
+            fn into_ratatui(self) -> ::ratatui::layout::Size {
+                ::ratatui::layout::Size {
+                    width: self.width.into(),
+                    height: self.height.into(),
+                }
+            }
+        }
+
+        pub trait RoundSizeExt<T> {
+            fn rounded_into_ratatui(self) -> ::ratatui::layout::Size;
+        }
+
+        impl<T> RoundSizeExt<T> for ::taffy::Size<T>
+        where
+            T: num_traits::NumCast,
+        {
+            fn rounded_into_ratatui(self) -> ::ratatui::layout::Size {
+                ::ratatui::layout::Size {
+                    width: num_traits::cast(self.width).unwrap(),
+                    height: num_traits::cast(self.height).unwrap(),
+                }
+            }
+        }
+    }
+
+    pub use ratatui::*;
+    pub use taffy::*;
+}
 
 impl From<ComponentId> for taffy::NodeId {
     fn from(value: ComponentId) -> Self {
@@ -18,19 +73,6 @@ impl From<ComponentId> for taffy::NodeId {
 impl From<taffy::NodeId> for ComponentId {
     fn from(value: taffy::NodeId) -> Self {
         ComponentId(value.into())
-    }
-}
-
-pub trait SizeExt {
-    fn into_taffy<T: From<u16>>(self) -> taffy::Size<T>;
-}
-
-impl SizeExt for ratatui::layout::Size {
-    fn into_taffy<T: From<u16>>(self) -> taffy::Size<T> {
-        taffy::Size {
-            width: self.width.into(),
-            height: self.height.into(),
-        }
     }
 }
 
@@ -85,7 +127,9 @@ impl LayoutExt for taffy::Layout {
 /// An absolute-positioned layout.
 #[derive(Default, Debug, Clone)]
 pub struct AbsoluteLayout {
-    /// The rectangle containing the content.
+    /// The rectangle containing the overflowing content.
+    pub(self) overflow_size: Size,
+    /// The rectangle containing the clipped content.
     pub(self) content_rect: Rect,
     /// The rectangle containing the padding, and the content.
     pub(self) padding_rect: Rect,
@@ -435,6 +479,7 @@ pub fn compute_absolute_layout(
             let taffy_node_data = component.get_taffy_node_data_mut();
             let layout = &taffy_node_data.rounded_layout;
             let absolute_layout = &mut taffy_node_data.absolute_layout;
+            absolute_layout.overflow_size = layout.content_size.rounded_into_ratatui();
             absolute_layout.content_rect = layout
                 .content_rect()
                 .offset(parent_area.as_position().as_offset());
@@ -473,7 +518,7 @@ pub fn trace_tree_custom(root: &dyn DefaultDrawableComponent) {
             let absolute_layout = &taffy_node_data.absolute_layout;
             writeln! {
                 &mut buffer_string,
-                "{lines}{fork}{label} [ xr: {xr}, yr: {yr}, xa: {xa}, ya: {ya}, w: {w}, h: {h} ]",
+                "{lines}{fork}{label} [ xr: {xr}, yr: {yr}, xa: {xa}, ya: {ya}, w: {w}, h: {h}, wo: {wo}, ho: {ho} ]",
                 lines = preorder_data.lines,
                 label = component.get_debug_label(),
                 fork = if preorder_data.first {
@@ -489,6 +534,8 @@ pub fn trace_tree_custom(root: &dyn DefaultDrawableComponent) {
                 ya = absolute_layout.border_rect.y,
                 w = absolute_layout.border_rect.width,
                 h = absolute_layout.border_rect.height,
+                wo = absolute_layout.overflow_size.width,
+                ho = absolute_layout.overflow_size.height,
             }
             .unwrap();
             ControlFlow::Continue(PreorderData {

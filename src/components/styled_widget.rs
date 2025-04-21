@@ -26,7 +26,7 @@ pub trait MeasurableWidget: WidgetRef + Debug {
 pub struct StyledWidget<T: MeasurableWidget> {
     id: ComponentId,
     taffy_node_data: TaffyNodeData,
-    widget: T,
+    pub widget: T,
 }
 
 impl<T> StyledWidget<T>
@@ -125,6 +125,12 @@ impl MeasurableWidget for Text<'_> {
         _known_dimensions: taffy::Size<Option<f32>>,
         _available_space: taffy::Size<taffy::AvailableSpace>,
     ) -> taffy::Size<f32> {
+        tracing::trace!(
+            ?_known_dimensions,
+            ?_available_space,
+            width = self.width(),
+            height = self.height()
+        );
         taffy::Size {
             width: self.width() as f32,
             height: self.height() as f32,
