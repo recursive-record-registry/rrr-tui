@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 
 use color_eyre::eyre::Result;
+use itertools::Itertools;
 use ratatui::{
     layout::Rect,
     style::{Color, Style},
@@ -78,9 +79,13 @@ impl TextBlock {
         }
 
         let width = self.wrapped_lines_width(available_space_width);
-        // TODO: Does this split '\n' as well?
-        let wrapped_lines = textwrap::wrap(self.text.as_ref(), textwrap::Options::new(width));
-        Box::new(wrapped_lines.into_iter())
+        // Handle both "\r" and "\r\n" line endings using `str::lines`, as the `textwrap` crate only
+        // allows handling one of them.
+        Box::new(
+            self.text.lines().flat_map(move |line| {
+                textwrap::wrap(line, textwrap::Options::new(width)).into_iter()
+            }),
+        )
     }
 }
 
@@ -136,6 +141,11 @@ impl Drawable for TextBlock {
         let lines = self.wrapped_lines(AvailableSpace::Definite(content_rect.width as f32));
 
         for (line, y) in lines.zip(content_rect.y..) {
+            debug_assert!(
+                !line.as_ref().chars().any(|c| c == '\r'),
+                "Carriage returns mess with style rendering."
+            );
+
             let span = Span::raw(line);
             let rect = Rect {
                 x: content_rect.x,
@@ -145,20 +155,7 @@ impl Drawable for TextBlock {
                 height: 1,
             };
             context.frame().render_widget(span, rect);
-            context.frame().buffer_mut().set_style(
-                rect,
-                TextColor {
-                    fg: ColorU8Rgb::new_f32(1.0, 0.0, 0.0).into(),
-                    bg: ColorU8Rgb::new_f32(0.0, 0.0, 1.0).into(),
-                },
-            );
         }
-
-        // let widget = Text::from_iter(
-        //     lines.map(|line| Span::styled(line, Style::new().fg(Color::White).bg(Color::Black))),
-        // );
-
-        // context.frame().render_widget_ref(widget, content_rect);
 
         Ok(())
     }
