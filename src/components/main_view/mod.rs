@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 
 use color_eyre::eyre::{Result, eyre};
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use pane_content::{PaneContent, PaneContentArgs};
 use pane_open::{PaneOpen, PaneOpenArgs};
 use ratatui::prelude::*;
 use ratatui::widgets::Table;
@@ -18,6 +19,7 @@ use rrr::registry::Registry;
 use rrr::utils::fd_lock::ReadLock;
 use rrr::utils::serde::BytesOrAscii;
 use taffy::Dimension;
+use taffy::prelude::{auto, length, line, min_content};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{Instrument, debug, info_span};
 
@@ -38,6 +40,7 @@ use super::layout_placeholder::LayoutPlaceholder;
 use super::open_status::{Animation, OpenStatus, SpinnerContent};
 use super::radio_array::RadioArray;
 
+pub mod pane_content;
 pub mod pane_open;
 
 #[derive(Clone)]
@@ -148,6 +151,7 @@ pub struct MainView {
     args: Arc<Args>,
     placeholder_top: LayoutPlaceholder,
     placeholder_footer: LayoutPlaceholder,
+    pane_content: PaneContent,
     pane_open: PaneOpen,
     state: Rc<RefCell<MainState>>,
 }
@@ -178,8 +182,21 @@ impl MainView {
         Ok(Self {
             id,
             taffy_node_data: TaffyNodeData::new(taffy::Style {
-                display: taffy::Display::Flex,
-                flex_direction: taffy::FlexDirection::Column,
+                display: taffy::Display::Grid,
+                grid_template_columns: vec![
+                    length(16.0),
+                    length(1.0), // Divider
+                    auto(),
+                    length(1.0), // Divider
+                    length(16.0),
+                ],
+                grid_template_rows: vec![
+                    length(1.0),   // Header
+                    length(7.0),   // Top
+                    auto(),        // Content
+                    min_content(), // Bottom
+                    length(1.0),   // Footer
+                ],
                 size: taffy::Size {
                     width: Dimension::percent(1.0),
                     height: Dimension::percent(1.0),
@@ -187,23 +204,48 @@ impl MainView {
                 ..Default::default()
             }),
             args: args.clone(),
-            state,
             placeholder_top: LayoutPlaceholder::new(ComponentId::new(), action_tx).with_style(
                 |style| taffy::Style {
-                    flex_grow: 1.0,
+                    grid_column: taffy::Line {
+                        start: line(1),
+                        end: line(5),
+                    },
+                    grid_row: taffy::Line {
+                        start: line(1),
+                        end: line(2),
+                    },
+                    ..style
+                },
+            ),
+            pane_content: PaneContent::new(ComponentId::new(), action_tx, &state)?.with_style(
+                |style| taffy::Style {
+                    grid_column: taffy::Line {
+                        start: line(1),
+                        end: line(5),
+                    },
+                    grid_row: line(3),
                     ..style
                 },
             ),
             placeholder_footer: LayoutPlaceholder::new(ComponentId::new(), action_tx).with_style(
                 |style| taffy::Style {
-                    size: taffy::Size {
-                        height: Dimension::length(1.0),
-                        width: Dimension::percent(1.0),
+                    grid_column: taffy::Line {
+                        start: line(1),
+                        end: line(5),
                     },
+                    grid_row: line(5),
                     ..style
                 },
             ),
-            pane_open,
+            pane_open: pane_open.with_style(|style| taffy::Style {
+                grid_column: taffy::Line {
+                    start: line(1),
+                    end: line(5),
+                },
+                grid_row: line(4),
+                ..style
+            }),
+            state,
         })
     }
 
@@ -265,33 +307,6 @@ impl MainView {
             .render_widget(Span::raw("[O]verview"), area_title);
         Ok(())
     }
-
-    fn draw_pane_content(
-        &self,
-        context: &mut DrawContext,
-        area: Rect,
-        title_offset_x: u16,
-    ) -> Result<()> {
-        let (area_title, area_content) = Self::pane_areas(area, title_offset_x);
-
-        context
-            .frame()
-            .render_widget(Span::raw("Record [C]ontent"), area_title);
-
-        if let Some(opened_record) = self.state.borrow().opened_record.as_ref() {
-            let data_string = String::from_utf8_lossy(&opened_record.record.data);
-            let lines = textwrap::wrap(
-                data_string.as_ref(),
-                textwrap::Options::new(area.width as usize),
-            );
-            context.frame().render_widget(
-                Text::from_iter(lines).style(Style::default()), // TODO: Other formats
-                area_content,
-            );
-        }
-
-        Ok(())
-    }
 }
 
 impl Component for MainView {
@@ -318,6 +333,7 @@ impl Component for MainView {
     fn get_children(&self) -> Vec<&dyn Component> {
         vec![
             &self.placeholder_top,
+            &self.pane_content,
             &self.pane_open,
             &self.placeholder_footer,
         ]
@@ -326,6 +342,7 @@ impl Component for MainView {
     fn get_children_mut(&mut self) -> Vec<&mut dyn Component> {
         vec![
             &mut self.placeholder_top,
+            &mut self.pane_content,
             &mut self.pane_open,
             &mut self.placeholder_footer,
         ]
@@ -435,7 +452,12 @@ impl Drawable for MainView {
         self.draw_pane_tree(context, area_tree)?;
         self.draw_pane_metadata(context, area_metadata)?;
         self.draw_pane_overview(context, area_overview)?;
-        self.draw_pane_content(context, area_content, area_metadata.x)?;
+        self.pane_content.draw(
+            context,
+            PaneContentArgs {
+                title_offset_x: area_metadata.x,
+            },
+        );
         self.pane_open.draw(
             context,
             // area_bottom,
