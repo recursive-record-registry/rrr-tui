@@ -19,11 +19,11 @@ pub struct Args {
     pub registry_directory: PathBuf,
 
     /// Enforce a maximum width of the user interface.
-    #[arg(short('w'), long)]
+    #[arg(short('W'), long)]
     pub force_max_width: Option<u16>,
 
     /// Enforce a maximum height of the user interface.
-    #[arg(short('h'), long)]
+    #[arg(short('H'), long)]
     pub force_max_height: Option<u16>,
 }
 
