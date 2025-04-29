@@ -1,14 +1,14 @@
 use std::{fmt::Debug, ops::ControlFlow};
 
 use color_eyre::Result;
-use ratatui::layout::{Direction, Layout, Rect};
+use ratatui::layout::Direction;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     action::{Action, ComponentMessage},
-    component::{Component, ComponentExt, ComponentId, DefaultDrawable, DrawContext, Drawable},
+    component::{Component, ComponentExt, ComponentId, DrawContext, Drawable},
     components::checkbox::Checkbox,
-    layout::{AbsoluteLayout, TaffyNodeData},
+    layout::TaffyNodeData,
 };
 
 #[derive(Debug, Clone)]
@@ -186,7 +186,7 @@ where
         }
 
         for (_, checkbox) in self.items.iter() {
-            checkbox.default_draw(context)?;
+            context.draw_component_with(checkbox, ())?;
         }
 
         Ok(())

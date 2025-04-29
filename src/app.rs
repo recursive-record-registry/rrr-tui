@@ -19,7 +19,7 @@ use crate::{
         HandleEventSuccess, find_component_by_id_mut,
     },
     components::main_view::MainView,
-    layout::{self, LayoutExt, PositionExt},
+    layout::{self},
     tui::{Event, Tui},
 };
 
@@ -203,7 +203,7 @@ impl App {
                 kind: KeyEventKind::Press,
                 ..
             } => {
-                layout::trace_tree(&self.root_component, ComponentId::root().into());
+                tracing::debug!("Tree:\n{tree:#?}", tree = self.root_component);
                 None
             }
             #[cfg(feature = "debug")]
@@ -369,13 +369,10 @@ impl App {
             layout::compute_absolute_layout(&mut *self.root_component, area);
 
             let (now, elapsed_time) = self.get_elapsed_time();
+            let mut draw_context =
+                DrawContext::new(frame, self.get_focused_component_id(), now, elapsed_time);
 
-            result = self.root_component.default_draw(&mut DrawContext::new(
-                frame,
-                self.get_focused_component_id(),
-                now,
-                elapsed_time,
-            ));
+            result = draw_context.draw_component(&mut *self.root_component);
         })?;
         result
     }

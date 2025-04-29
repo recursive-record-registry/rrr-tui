@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use color_eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
-    layout::{Rect, Size},
+    layout::Size,
     style::{Style, Stylize},
     text::{Line, Span},
 };
@@ -156,7 +156,7 @@ impl Drawable for Checkbox {
             Span::raw(self.label.as_ref()),
         ];
 
-        context.frame().render_widget(Line::from_iter(spans), area);
+        context.draw_widget(&Line::from_iter(spans), area);
 
         Ok(())
     }

@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="ALL" />
+  </component>
+  <component name="CargoProjects">
+    <cargoProject FILE="$PROJECT_DIR$/Cargo.toml">
+      <package file="$PROJECT_DIR$">
+        <enabledFeature name="default" />
+      </package>
+    </cargoProject>
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="b98658b9-0287-4f22-b260-82510be42602" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/rrr-tui-3.iml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/app.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/component.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/component.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/button.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/button.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/checkbox.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/checkbox.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/input_field.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/input_field.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/main_view/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/main_view/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/main_view/pane_content.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/main_view/pane_content.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/main_view/pane_open.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/main_view/pane_open.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/open_status.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/open_status.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/scroll_pane.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/scroll_pane.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/styled_widget.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/styled_widget.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/text_block.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/text_block.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/layout.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/layout.rs" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ExecutionTargetManager" SELECTED_TARGET="RsBuildProfile:dev" />
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="MacroExpansionManager">
+    <option name="directoryName" value="WF5I2s90" />
+  </component>
+  <component name="ProjectColorInfo"><![CDATA[{
+  "associatedIndex": 2
+}]]></component>
+  <component name="ProjectId" id="2wQBYMJz7U4Ge9oifSgLa2mZjIM" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Cargo.Run rrr-tui.executor": "Debug",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.rust.reset.selective.auto.import": "true",
+    "git-widget-placeholder": "taffy",
+    "nodejs_package_manager_path": "npm",
+    "org.rust.cargo.project.model.PROJECT_DISCOVERY": "true",
+    "org.rust.first.attach.projects": "true",
+    "vue.rearranger.settings.migration": "true"
+  }
+}]]></component>
+  <component name="RunManager" selected="Cargo.Run rrr-tui">
+    <configuration name="Run rrr-tui" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+      <option name="buildProfileId" value="dev" />
+      <option name="command" value="run --package rrr-tui --bin rrr-tui -- -d ..\rrr-make\target\tmp\test-registry-3\target\staging\" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <envs />
+      <option name="emulateTerminal" value="true" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="Test rrr-tui" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+      <option name="command" value="test --workspace" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <envs />
+      <option name="emulateTerminal" value="true" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
+    <list>
+      <item itemvalue="Cargo.Run rrr-tui" />
+      <item itemvalue="Cargo.Test rrr-tui" />
+    </list>
+  </component>
+  <component name="RustProjectSettings">
+    <option name="toolchainHomeDirectory" value="$USER_HOME$/.cargo/bin" />
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="b98658b9-0287-4f22-b260-82510be42602" name="Changes" comment="" />
+      <created>1745963963894</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1745963963894</updated>
+      <workItem from="1745963964953" duration="251000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
+          <url>file://$PROJECT_DIR$/src/component.rs</url>
+          <line>537</line>
+          <option name="timeStamp" value="2" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
+  </component>
+</project>
