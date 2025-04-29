@@ -3,48 +3,32 @@ use std::cell::RefCell;
 use std::fmt::Display;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 
-use color_eyre::eyre::{Result, eyre};
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use color_eyre::eyre::Result;
 use pane_content::{PaneContent, PaneContentArgs};
 use pane_open::{PaneOpen, PaneOpenArgs};
 use ratatui::prelude::*;
-use ratatui::widgets::Table;
-use rrr::record::{
-    HashedRecordKey, RECORD_NAME_ROOT, RecordKey, RecordName, RecordReadVersionSuccess,
-    SuccessionNonce,
-};
+use ratatui::widgets::{Table, WidgetRef};
+use rrr::record::{HashedRecordKey, RECORD_NAME_ROOT, RecordReadVersionSuccess, SuccessionNonce};
 use rrr::registry::Registry;
 use rrr::utils::fd_lock::ReadLock;
-use rrr::utils::serde::BytesOrAscii;
 use taffy::Dimension;
-use taffy::prelude::{auto, length, line, min_content};
+use taffy::prelude::{auto, fr, length, line, min_content, minmax, zero};
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::{Instrument, debug, info_span};
 
 use crate::action::{Action, ComponentMessage};
 use crate::args::Args;
-use crate::color::{ColorOklch, ColorU8Rgb, TextColor};
-use crate::component::{
-    Component, ComponentExt, ComponentId, DrawContext, Drawable, HandleEventSuccess,
-};
-use crate::components::text_block::TextBlock;
+use crate::color::TextColor;
+use crate::component::{Component, ComponentExt, ComponentId, DrawContext, Drawable};
 use crate::env::PROJECT_VERSION;
-use crate::error;
-use crate::layout::{LayoutExt, TaffyNodeData};
-use crate::tui::Event;
+use crate::layout::TaffyNodeData;
 
-use super::button::Button;
-use super::input_field::InputField;
 use super::layout_placeholder::LayoutPlaceholder;
-use super::open_status::{Animation, OpenStatus, SpinnerContent};
-use super::radio_array::RadioArray;
 
 pub mod pane_content;
 pub mod pane_open;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct LineSpacer {
     direction: Direction,
     begin: &'static str,
@@ -53,15 +37,17 @@ pub struct LineSpacer {
     merged: &'static str,
 }
 
-impl Widget for LineSpacer {
-    fn render(self, area: Rect, buf: &mut Buffer)
+impl WidgetRef for LineSpacer {
+    fn render_ref(&self, area: Rect, buf: &mut Buffer)
     where
         Self: Sized,
     {
-        debug_assert!(
-            (self.direction == Direction::Horizontal || area.width == 1)
-                && (self.direction == Direction::Vertical || area.height == 1)
-        );
+        //debug_assert!(
+        //    (self.direction == Direction::Horizontal || area.width == 1)
+        //        && (self.direction == Direction::Vertical || area.height == 1),
+        //    "Invalid render area: direction = {direction:?}, area = {area:?}",
+        //    direction = self.direction
+        //);
 
         let start_position = area.as_position();
 
@@ -187,16 +173,16 @@ impl MainView {
                 grid_template_columns: vec![
                     length(16.0),
                     length(1.0), // Divider
-                    auto(),
+                    minmax(zero(), fr(1.0)),
                     length(1.0), // Divider
                     length(16.0),
                 ],
                 grid_template_rows: vec![
-                    length(1.0),   // Header
-                    length(7.0),   // Top
-                    auto(),        // Content
-                    min_content(), // Bottom
-                    length(1.0),   // Footer
+                    length(1.0),             // Header
+                    length(7.0),             // Top
+                    minmax(zero(), fr(1.0)), // Content
+                    min_content(),           // Bottom
+                    length(1.0),             // Footer
                 ],
                 size: taffy::Size {
                     width: Dimension::percent(1.0),
@@ -209,11 +195,11 @@ impl MainView {
                 |style| taffy::Style {
                     grid_column: taffy::Line {
                         start: line(1),
-                        end: line(5),
+                        end: line(6),
                     },
                     grid_row: taffy::Line {
                         start: line(1),
-                        end: line(2),
+                        end: line(3),
                     },
                     ..style
                 },
@@ -222,30 +208,30 @@ impl MainView {
                 |style| taffy::Style {
                     grid_column: taffy::Line {
                         start: line(1),
-                        end: line(5),
+                        end: line(6),
                     },
                     grid_row: line(3),
-                    ..style
-                },
-            ),
-            placeholder_footer: LayoutPlaceholder::new(ComponentId::new(), action_tx).with_style(
-                |style| taffy::Style {
-                    grid_column: taffy::Line {
-                        start: line(1),
-                        end: line(5),
-                    },
-                    grid_row: line(5),
                     ..style
                 },
             ),
             pane_open: pane_open.with_style(|style| taffy::Style {
                 grid_column: taffy::Line {
                     start: line(1),
-                    end: line(5),
+                    end: line(6),
                 },
                 grid_row: line(4),
                 ..style
             }),
+            placeholder_footer: LayoutPlaceholder::new(ComponentId::new(), action_tx).with_style(
+                |style| taffy::Style {
+                    grid_column: taffy::Line {
+                        start: line(1),
+                        end: line(6),
+                    },
+                    grid_row: line(5),
+                    ..style
+                },
+            ),
             state,
         })
     }
@@ -263,8 +249,8 @@ impl MainView {
     }
 
     fn draw_header(&self, context: &mut DrawContext, area_header: Rect) -> Result<()> {
-        context.frame().render_widget(
-            Span::raw(format!("RRR TUI v{}", *PROJECT_VERSION)),
+        context.draw_widget(
+            &Span::raw(format!("RRR TUI v{}", *PROJECT_VERSION)),
             area_header,
         );
         Ok(())
@@ -272,9 +258,7 @@ impl MainView {
 
     fn draw_pane_tree(&self, context: &mut DrawContext, area: Rect) -> Result<()> {
         let (area_title, _area_content) = Self::pane_areas(area, 0);
-        context
-            .frame()
-            .render_widget(Span::raw("[T]ree"), area_title);
+        context.draw_widget(&Span::raw("[T]ree"), area_title);
         Ok(())
     }
 
@@ -291,21 +275,17 @@ impl MainView {
                 [Constraint::Length(16), Constraint::Fill(1)],
             );
 
-            context.frame().render_widget(metadata_table, area_content);
+            context.draw_widget(&metadata_table, area_content);
         }
 
-        context
-            .frame()
-            .render_widget(Span::raw("Record [M]etadata"), area_title);
+        context.draw_widget(&Span::raw("Record [M]etadata"), area_title);
 
         Ok(())
     }
 
     fn draw_pane_overview(&self, context: &mut DrawContext, area: Rect) -> Result<()> {
         let (area_title, _area_content) = Self::pane_areas(area, 0);
-        context
-            .frame()
-            .render_widget(Span::raw("[O]verview"), area_title);
+        context.draw_widget(&Span::raw("[O]verview"), area_title);
         Ok(())
     }
 }
@@ -391,10 +371,8 @@ impl Drawable for MainView {
 
         let area = self.taffy_node_data.absolute_layout().content_rect();
 
-        context
-            .frame()
-            .buffer_mut()
-            .set_style(area, TextColor::default());
+        // Draw the background of the entire main window.
+        context.set_style(area, TextColor::default());
 
         // let lines = [
         //     "aasdfsdadfasdhadgfhlafjdghskldfghjkdslsdfsdadfasdhadgfhlafjdghskldfghjkdsl",
@@ -453,27 +431,19 @@ impl Drawable for MainView {
         let [area_tree, area_metadata, area_overview] = layout_top.areas(area_top);
         let [_, area_top_spacer_0, area_top_spacer_1, _] = layout_top.spacers(area_top);
 
-        context
-            .frame()
-            .render_widget(SPACER_HORIZONTAL.clone(), area_top);
-        context
-            .frame()
-            .render_widget(SPACER_HORIZONTAL.clone(), area_content);
-        context
-            .frame()
-            .render_widget(SPACER_HORIZONTAL.clone(), area_bottom);
-        context
-            .frame()
-            .render_widget(SPACER_HORIZONTAL.clone(), area_footer);
-        context.frame().render_widget(
-            SPACER_VERTICAL_FORKED.clone(),
+        context.draw_widget(&SPACER_HORIZONTAL, area_top);
+        context.draw_widget(&SPACER_HORIZONTAL, area_content);
+        context.draw_widget(&SPACER_HORIZONTAL, area_bottom);
+        context.draw_widget(&SPACER_HORIZONTAL, area_footer);
+        context.draw_widget(
+            &SPACER_VERTICAL_FORKED,
             Rect {
                 height: area_top_spacer_0.height + 1,
                 ..area_top_spacer_0
             },
         );
-        context.frame().render_widget(
-            SPACER_VERTICAL_FORKED.clone(),
+        context.draw_widget(
+            &SPACER_VERTICAL_FORKED,
             Rect {
                 height: area_top_spacer_1.height + 1,
                 ..area_top_spacer_1
@@ -483,15 +453,14 @@ impl Drawable for MainView {
         self.draw_pane_tree(context, area_tree)?;
         self.draw_pane_metadata(context, area_metadata)?;
         self.draw_pane_overview(context, area_overview)?;
-        self.pane_content.draw(
-            context,
+        context.draw_component_with(
+            &self.pane_content,
             PaneContentArgs {
                 title_offset_x: area_metadata.x,
             },
         )?;
-        self.pane_open.draw(
-            context,
-            // area_bottom,
+        context.draw_component_with(
+            &self.pane_open,
             PaneOpenArgs {
                 title_offset_x: area_metadata.x,
             },

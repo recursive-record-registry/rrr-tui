@@ -1,48 +1,23 @@
 use core::option::Option::Some;
-use std::borrow::Cow;
 use std::cell::RefCell;
-use std::fmt::Display;
 use std::rc::Rc;
-use std::sync::Arc;
-use std::time::{Duration, Instant};
 
-use color_eyre::eyre::{Result, eyre};
-use color_eyre::owo_colors::OwoColorize;
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use color_eyre::eyre::Result;
 use ratatui::prelude::*;
-use ratatui::widgets::Table;
-use rrr::record::{
-    HashedRecordKey, RECORD_NAME_ROOT, RecordKey, RecordName, RecordReadVersionSuccess,
-    SuccessionNonce,
-};
-use rrr::registry::Registry;
-use rrr::utils::fd_lock::ReadLock;
-use rrr::utils::serde::BytesOrAscii;
-use taffy::Dimension;
-use taffy::prelude::{auto, percent};
+use ratatui::widgets::Paragraph;
+use taffy::prelude::{auto, length, percent, zero};
+use taffy::{Display, FlexDirection};
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::{Instrument, debug, info_span};
 
 use crate::action::{Action, ComponentMessage};
-use crate::args::Args;
-use crate::color::{ColorOklch, TextColor};
-use crate::component::{
-    Component, ComponentExt, ComponentId, DefaultDrawable, DrawContext, Drawable,
-    HandleEventSuccess,
-};
-use crate::components::button::Button;
-use crate::components::input_field::InputField;
-use crate::components::open_status::{Animation, OpenStatus, SpinnerContent};
-use crate::components::radio_array::RadioArray;
+use crate::component::{Component, ComponentExt, ComponentId, DrawContext, Drawable};
+use crate::components::pane::Pane;
 use crate::components::scroll_pane::ScrollPane;
 use crate::components::styled_widget::StyledWidget;
 use crate::components::text_block::TextBlock;
-use crate::env::PROJECT_VERSION;
-use crate::error;
-use crate::layout::{LayoutExt, TaffyNodeData, ext::ratatui::SizeExt};
-use crate::tui::Event;
+use crate::layout::TaffyNodeData;
 
-use super::{Encoding, MainState, MainView};
+use super::{MainState, MainView};
 
 #[derive(Debug)]
 pub struct PaneContent {
@@ -51,7 +26,8 @@ pub struct PaneContent {
     action_tx: UnboundedSender<Action>,
     main_state: Rc<RefCell<MainState>>,
     // content: ScrollPane<StyledWidget<Text<'static>>>,
-    content: ScrollPane<TextBlock>,
+    // content: ScrollPane<TextBlock>,
+    content: ScrollPane<Pane>,
 }
 
 impl PaneContent {
@@ -74,19 +50,73 @@ impl PaneContent {
             content: ScrollPane::new(
                 ComponentId::new(),
                 action_tx,
-                TextBlock::new(ComponentId::new(), action_tx).with_style(|style| taffy::Style {
-                    size: taffy::Size {
-                        width: percent(1.0),
-                        height: auto(),
-                    },
-                    ..style
-                }),
+                Pane::new(ComponentId::new(), action_tx)
+                    .with_style(|style| taffy::Style {
+                        display: Display::Block,
+                        // display: Display::Flex,
+                        // flex_direction: FlexDirection::Column,
+                        size: taffy::Size {
+                            width: auto(),
+                            height: length(21.0), // TODO: compute
+                        },
+                        ..style
+                    })
+                    .with_child(StyledWidget::new(
+                        ComponentId::new(),
+                        action_tx,
+                        ratatui::text::Text::from_iter(
+                            "AA1\nAA2\nAA3\nAA4\nAA5\nAA6\nAA7\nAA8\nAA9".lines(),
+                        ),
+                    ))
+                    .with_child(
+                        ScrollPane::new(
+                            ComponentId::new(),
+                            action_tx,
+                            TextBlock::new(ComponentId::new(), action_tx)
+                                .with_text("BBB1\nBBB2\nBBB3\nBBB4\nBBB5\nBBB6\nBBBL")
+                                .with_style(|style| taffy::Style {
+                                    size: taffy::Size {
+                                        width: length(8.0),
+                                        height: length(7.0), // TODO: compute
+                                    },
+                                    ..style
+                                }),
+                        )
+                        .with_style(|style| taffy::Style {
+                            size: taffy::Size {
+                                width: auto(),
+                                height: length(3.0),
+                            },
+                            // size: taffy::Size {
+                            //     width: percent(1.0),
+                            //     height: length(17.0),
+                            // },
+                            // max_size: taffy::Size {
+                            //     width: percent(1.0),
+                            //     height: length(17.0),
+                            // },
+                            // min_size: taffy::Size {
+                            //     width: auto(),
+                            //     height: length(3.0),
+                            // },
+                            ..style
+                        }),
+                    )
+                    .with_child(StyledWidget::new(
+                        ComponentId::new(),
+                        action_tx,
+                        ratatui::text::Text::from_iter(
+                            "CCC1\nCCC2\nCCC3\nCCC4\nCCC5\nCCC6\nCCC7\nCCC8\nCCC9".lines(),
+                        ),
+                    )),
             )
             .with_style(|style| taffy::Style {
                 size: taffy::Size {
                     width: percent(1.0),
-                    height: auto(),
+                    height: percent(1.0),
                 },
+                max_size: percent(1.0),
+                min_size: percent(1.0),
                 ..style
             }),
             main_state: main_state.clone(),
@@ -102,7 +132,7 @@ impl Component for PaneContent {
                 read_result: Some(read_result),
             } => {
                 let data_string = String::from_utf8_lossy(&read_result.data);
-                self.content.child.text = data_string.into_owned().into();
+                // self.content.child.set_text(data_string.into_owned().into());
                 Ok(Some(Action::Render))
             }
             _ => Ok(None),
@@ -147,11 +177,8 @@ impl Drawable for PaneContent {
         let area = self.taffy_node_data.absolute_layout().padding_rect();
         let (area_title, area_content) = MainView::pane_areas(area, extra_args.title_offset_x);
 
-        context
-            .frame()
-            .render_widget(Span::raw("Record [C]ontent"), area_title);
-
-        self.content.default_draw(context)?;
+        context.draw_widget(&Span::raw("Record [C]ontent"), area_title);
+        context.draw_component_with(&self.content, ())?;
 
         Ok(())
     }

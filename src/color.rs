@@ -28,6 +28,13 @@ impl Default for TextColor {
 }
 
 impl TextColor {
+    pub fn invert(self) -> Self {
+        Self {
+            fg: self.bg,
+            bg: self.fg,
+        }
+    }
+
     pub fn fg(self, fg: impl Into<Color>) -> Self {
         Self {
             fg: fg.into(),
@@ -147,7 +154,7 @@ impl From<ColorOklch> for ratatui::style::Color {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy)]
 pub struct ColorU8Rgb {
     pub red: u8,
     pub green: u8,
@@ -185,6 +192,18 @@ impl From<ColorU8Rgb> for Color {
 impl From<ColorU8Rgb> for ratatui::style::Color {
     fn from(value: ColorU8Rgb) -> Self {
         Color::from(value).into()
+    }
+}
+
+impl TryFrom<ratatui::style::Color> for ColorU8Rgb {
+    type Error = ();
+
+    fn try_from(value: ratatui::style::Color) -> Result<Self, Self::Error> {
+        if let ratatui::style::Color::Rgb(r, g, b) = value {
+            Ok(ColorU8Rgb::new(r, g, b))
+        } else {
+            Err(())
+        }
     }
 }
 
