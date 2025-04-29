@@ -1,18 +1,12 @@
 use core::option::Option::Some;
 use std::cell::RefCell;
-use std::fmt::Display;
 use std::rc::Rc;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use color_eyre::eyre::{Result, eyre};
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::prelude::*;
-use ratatui::widgets::Table;
-use rrr::record::{
-    HashedRecordKey, RECORD_NAME_ROOT, RecordKey, RecordName, RecordReadVersionSuccess,
-    SuccessionNonce,
-};
+use rrr::record::{HashedRecordKey, RecordKey, RecordName, RecordReadVersionSuccess};
 use rrr::registry::Registry;
 use rrr::utils::fd_lock::ReadLock;
 use rrr::utils::serde::BytesOrAscii;
@@ -21,20 +15,17 @@ use tokio::sync::mpsc::UnboundedSender;
 use tracing::{Instrument, debug, info_span};
 
 use crate::action::{Action, ComponentMessage};
-use crate::args::Args;
 use crate::color::{ColorOklch, TextColor};
 use crate::component::{
-    Component, ComponentExt, ComponentId, DefaultDrawable, DrawContext, Drawable,
-    HandleEventSuccess,
+    Component, ComponentExt, ComponentId, DrawContext, Drawable, HandleEventSuccess,
 };
 use crate::components::button::Button;
 use crate::components::input_field::InputField;
 use crate::components::open_status::{Animation, OpenStatus, SpinnerContent};
 use crate::components::radio_array::RadioArray;
 use crate::components::styled_widget::StyledWidget;
-use crate::env::PROJECT_VERSION;
 use crate::error;
-use crate::layout::{LayoutExt, TaffyNodeData, ext::ratatui::SizeExt};
+use crate::layout::TaffyNodeData;
 use crate::tui::Event;
 
 use super::{Encoding, MainState, MainView};
@@ -361,9 +352,7 @@ impl Drawable for PaneOpen {
         //     c = ?self.absolute_layout().content_rect()
         // );
 
-        context
-            .frame()
-            .render_widget(Span::raw("Open Sub-Record [Enter]"), area_title);
+        context.draw_widget(&Span::raw("Open Sub-Record [Enter]"), area_title);
 
         // let layout_bottom_lines = Layout::default()
         //     .direction(Direction::Horizontal)
@@ -382,18 +371,18 @@ impl Drawable for PaneOpen {
         // let [area_encoding_label, area_encoding_field, area_button] =
         //     layout_bottom_lines.areas(area_encoding);
 
-        self.record_name_label.default_draw(context)?;
+        context.draw_component_with(&self.record_name_label, ())?;
         // context
         //     .frame()
         //     .render_widget(Span::raw("Record Name"), area_record_name_label);
-        self.record_name_field.default_draw(context)?;
-        self.status_spinner.default_draw(context)?;
-        self.encoding_label.default_draw(context)?;
+        context.draw_component_with(&self.record_name_field, ())?;
+        context.draw_component_with(&self.status_spinner, ())?;
+        context.draw_component_with(&self.encoding_label, ())?;
         // context
         //     .frame()
         //     .render_widget(Span::raw("Encoding"), area_encoding_label);
-        self.encoding_radio_array.default_draw(context)?;
-        self.button.default_draw(context)?;
+        context.draw_component_with(&self.encoding_radio_array, ())?;
+        context.draw_component_with(&self.button, ())?;
 
         Ok(())
     }

@@ -1,19 +1,15 @@
 use std::borrow::Cow;
 
 use color_eyre::eyre::Result;
-use itertools::Itertools;
 use ratatui::{
     layout::Rect,
-    style::{Color, Style},
-    text::{Line, Span, Text},
-    widgets::Widget,
+    text::Span,
 };
 use taffy::AvailableSpace;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     action::Action,
-    color::{ColorU8Rgb, TextColor},
     component::{Component, ComponentId, Drawable},
     layout::TaffyNodeData,
     tracing_dbg,
@@ -140,6 +136,7 @@ impl Drawable for TextBlock {
         let content_rect = self.get_taffy_node_data().absolute_layout().content_rect();
         let lines = self.wrapped_lines(AvailableSpace::Definite(content_rect.width as f32));
 
+        // TODO: Only render visible lines
         for (line, y) in lines.zip(content_rect.y..) {
             debug_assert!(
                 !line.as_ref().chars().any(|c| c == '\r'),
@@ -154,7 +151,7 @@ impl Drawable for TextBlock {
                 width: span.width() as u16,
                 height: 1,
             };
-            context.frame().render_widget(span, rect);
+            context.draw_widget(&span, rect);
         }
 
         Ok(())

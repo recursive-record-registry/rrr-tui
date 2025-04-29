@@ -1,4 +1,4 @@
-use std::{fmt::Write, ops::ControlFlow};
+use std::ops::ControlFlow;
 
 use ext::RoundSizeExt;
 use ratatui::layout::{Offset, Position, Rect, Size};
@@ -6,7 +6,6 @@ use taffy::{
     CacheTree, LayoutBlockContainer, LayoutFlexboxContainer, LayoutGridContainer,
     LayoutPartialTree, PrintTree, RoundTree, TraversePartialTree, TraverseTree,
 };
-use tracing::Level;
 
 use crate::component::{self, ComponentId, DefaultDrawableComponent};
 
@@ -60,7 +59,6 @@ pub mod ext {
         }
     }
 
-    pub use ratatui::*;
     pub use taffy::*;
 }
 
@@ -135,6 +133,7 @@ pub struct AbsoluteLayout {
     pub(self) padding_rect: Rect,
     /// The outermost rectangle containing the border, the padding, and the content.
     pub(self) border_rect: Rect,
+    pub(self) scroll_position: Position,
 }
 
 impl AbsoluteLayout {
@@ -148,6 +147,10 @@ impl AbsoluteLayout {
 
     pub fn border_rect(&self) -> Rect {
         self.border_rect
+    }
+
+    pub fn scroll_position(&self) -> Position {
+        self.scroll_position
     }
 }
 
@@ -476,6 +479,7 @@ pub fn compute_absolute_layout(
         root_component,
         &frame_area,
         &mut |component, parent_area| {
+            let scroll_position = component.scroll_position();
             let taffy_node_data = component.get_taffy_node_data_mut();
             let layout = &taffy_node_data.rounded_layout;
             let absolute_layout = &mut taffy_node_data.absolute_layout;
@@ -489,6 +493,7 @@ pub fn compute_absolute_layout(
             absolute_layout.border_rect = layout
                 .border_rect()
                 .offset(parent_area.as_position().as_offset());
+            absolute_layout.scroll_position = scroll_position;
             ControlFlow::Continue(absolute_layout.padding_rect)
         },
         &mut |_, _| ControlFlow::Continue(()),
@@ -497,6 +502,8 @@ pub fn compute_absolute_layout(
 
 #[cfg(feature = "debug")]
 pub fn trace_tree_custom(root: &dyn DefaultDrawableComponent) {
+    use std::fmt::Write;
+
     struct PreorderData {
         lines: String,
         last_child_id: ComponentId,
@@ -567,6 +574,8 @@ pub fn trace_tree_custom(root: &dyn DefaultDrawableComponent) {
 /// Based on `taffy::print_tree`.
 #[cfg(feature = "debug")]
 pub fn trace_tree(tree: &impl PrintTree, root: taffy::NodeId) {
+    use std::fmt::Write;
+
     let mut buffer_string = "\nTREE\n".to_string();
     print_node(tree, root, false, String::new(), &mut buffer_string).unwrap();
 

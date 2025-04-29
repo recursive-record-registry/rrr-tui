@@ -1,48 +1,19 @@
 use core::option::Option::Some;
-use std::borrow::Cow;
 use std::cell::RefCell;
-use std::fmt::Display;
 use std::rc::Rc;
-use std::sync::Arc;
-use std::time::{Duration, Instant};
 
-use color_eyre::eyre::{Result, eyre};
-use color_eyre::owo_colors::OwoColorize;
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use color_eyre::eyre::Result;
 use ratatui::prelude::*;
-use ratatui::widgets::Table;
-use rrr::record::{
-    HashedRecordKey, RECORD_NAME_ROOT, RecordKey, RecordName, RecordReadVersionSuccess,
-    SuccessionNonce,
-};
-use rrr::registry::Registry;
-use rrr::utils::fd_lock::ReadLock;
-use rrr::utils::serde::BytesOrAscii;
-use taffy::Dimension;
 use taffy::prelude::{auto, percent};
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::{Instrument, debug, info_span};
 
 use crate::action::{Action, ComponentMessage};
-use crate::args::Args;
-use crate::color::{ColorOklch, TextColor};
-use crate::component::{
-    Component, ComponentExt, ComponentId, DefaultDrawable, DrawContext, Drawable,
-    HandleEventSuccess,
-};
-use crate::components::button::Button;
-use crate::components::input_field::InputField;
-use crate::components::open_status::{Animation, OpenStatus, SpinnerContent};
-use crate::components::radio_array::RadioArray;
+use crate::component::{Component, ComponentExt, ComponentId, DrawContext, Drawable};
 use crate::components::scroll_pane::ScrollPane;
-use crate::components::styled_widget::StyledWidget;
 use crate::components::text_block::TextBlock;
-use crate::env::PROJECT_VERSION;
-use crate::error;
-use crate::layout::{LayoutExt, TaffyNodeData, ext::ratatui::SizeExt};
-use crate::tui::Event;
+use crate::layout::TaffyNodeData;
 
-use super::{Encoding, MainState, MainView};
+use super::{MainState, MainView};
 
 #[derive(Debug)]
 pub struct PaneContent {
@@ -147,11 +118,8 @@ impl Drawable for PaneContent {
         let area = self.taffy_node_data.absolute_layout().padding_rect();
         let (area_title, area_content) = MainView::pane_areas(area, extra_args.title_offset_x);
 
-        context
-            .frame()
-            .render_widget(Span::raw("Record [C]ontent"), area_title);
-
-        self.content.default_draw(context)?;
+        context.draw_widget(&Span::raw("Record [C]ontent"), area_title);
+        context.draw_component_with(&self.content, ())?;
 
         Ok(())
     }
