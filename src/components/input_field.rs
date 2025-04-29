@@ -3,7 +3,6 @@ use std::ops::Range;
 use color_eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::{
-    layout::Rect,
     style::{Color, Style, Stylize},
     text::{Line, Span},
 };
@@ -314,7 +313,7 @@ impl Drawable for InputField {
                 } else {
                     spans.push(Span::styled(" ", Style::new().reversed()));
                 }
-                context.frame().render_widget(Line::from(spans), area);
+                context.draw_widget(&Line::from(spans), area);
             } else {
                 let spans = vec![
                     Span::styled(&self.content[..minmax.start], Style::new()),
@@ -324,12 +323,10 @@ impl Drawable for InputField {
                     ),
                     Span::styled(&self.content[minmax.end..], Style::new()),
                 ];
-                context.frame().render_widget(Line::from(spans), area);
+                context.draw_widget(&Line::from(spans), area);
             }
         } else {
-            context
-                .frame()
-                .render_widget(Span::styled(&self.content, Style::new()), area);
+            context.draw_widget(&Span::styled(&self.content, Style::new()), area);
         }
 
         Ok(())

@@ -5,13 +5,12 @@ use ratatui::{
     text::{Line, Span, Text},
     widgets::WidgetRef,
 };
-use taffy::{Dimension, Style, TaffyTree};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     action::Action,
     component::{Component, ComponentExt, ComponentId, Drawable},
-    layout::{LayoutExt, TaffyNodeData},
+    layout::TaffyNodeData,
 };
 
 pub trait MeasurableWidget: WidgetRef + Debug {
@@ -88,7 +87,8 @@ where
         Self: 'a,
     {
         let area = self.absolute_layout().content_rect();
-        self.widget.render_ref(area, context.frame().buffer_mut());
+        context.draw_widget(&self.widget, area);
+        // self.widget.render_ref(area, context.frame().buffer_mut());
         Ok(())
     }
 }

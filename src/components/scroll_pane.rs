@@ -1,18 +1,37 @@
 use color_eyre::eyre::Result;
-use taffy::{Dimension, Overflow};
+use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, MouseEvent, MouseEventKind};
+use nalgebra::SVector;
+use ratatui::layout::Position;
+use taffy::Overflow;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     action::Action,
-    component::{Component, ComponentId, DefaultDrawableComponent, Drawable},
-    layout::TaffyNodeData,
+    component::{
+        Component, ComponentExt, ComponentId, DefaultDrawableComponent, Drawable,
+        HandleEventSuccess,
+    },
+    layout::{TaffyNodeData, ext::ratatui::SizeExt},
+    tracing_dbg,
+    tui::Event,
 };
+
+enum ScrollAxis {
+    Horizontal,
+    Vertical,
+}
+
+enum ScrollDirection {
+    Backward,
+    Forward,
+}
 
 #[derive(Debug)]
 pub struct ScrollPane<T: DefaultDrawableComponent> {
     id: ComponentId,
     taffy_node_data: TaffyNodeData,
     pub child: T,
+    scroll_position: Position,
 }
 
 impl<T> ScrollPane<T>
@@ -33,7 +52,37 @@ where
                 ..Default::default()
             }),
             child,
+            scroll_position: Default::default(),
         }
+    }
+
+    fn scroll_size(&self) -> SVector<u16, 2> {
+        let absolute_layout = self.absolute_layout();
+        let overflow_size = absolute_layout.overflow_size().into_nalgebra();
+        let content_size = absolute_layout.content_rect().as_size().into_nalgebra();
+
+        // TODO: How to make this a saturating sub?
+        overflow_size - content_size
+    }
+
+    fn scroll(
+        &mut self,
+        axis: ScrollAxis,
+        direction: ScrollDirection,
+    ) -> Result<HandleEventSuccess> {
+        let scroll_size_2d = self.scroll_size();
+        let (component, scroll_size) = match axis {
+            ScrollAxis::Horizontal => (&mut self.scroll_position.x, scroll_size_2d.x),
+            ScrollAxis::Vertical => (&mut self.scroll_position.y, scroll_size_2d.y),
+        };
+        *component = match direction {
+            ScrollDirection::Backward => component.saturating_sub(1),
+            ScrollDirection::Forward => std::cmp::min(*component + 1, scroll_size),
+        };
+
+        self.get_taffy_node_data_mut().mark_cached_layout_dirty();
+
+        Ok(HandleEventSuccess::handled().with_action(Action::Render))
     }
 }
 
@@ -41,6 +90,56 @@ impl<T> Component for ScrollPane<T>
 where
     T: DefaultDrawableComponent,
 {
+    fn is_focusable(&self) -> bool {
+        true
+    }
+
+    fn handle_event(&mut self, event: &Event) -> Result<HandleEventSuccess> {
+        match event {
+            Event::Mouse(MouseEvent {
+                kind: MouseEventKind::ScrollUp,
+                ..
+            })
+            | Event::Key(KeyEvent {
+                code: KeyCode::Up,
+                kind: KeyEventKind::Press,
+                ..
+            }) => self.scroll(ScrollAxis::Vertical, ScrollDirection::Backward),
+            Event::Mouse(MouseEvent {
+                kind: MouseEventKind::ScrollDown,
+                ..
+            })
+            | Event::Key(KeyEvent {
+                code: KeyCode::Down,
+                kind: KeyEventKind::Press,
+                ..
+            }) => self.scroll(ScrollAxis::Vertical, ScrollDirection::Forward),
+            Event::Mouse(MouseEvent {
+                kind: MouseEventKind::ScrollLeft,
+                ..
+            })
+            | Event::Key(KeyEvent {
+                code: KeyCode::Left,
+                kind: KeyEventKind::Press,
+                ..
+            }) => self.scroll(ScrollAxis::Horizontal, ScrollDirection::Backward),
+            Event::Mouse(MouseEvent {
+                kind: MouseEventKind::ScrollRight,
+                ..
+            })
+            | Event::Key(KeyEvent {
+                code: KeyCode::Right,
+                kind: KeyEventKind::Press,
+                ..
+            }) => self.scroll(ScrollAxis::Horizontal, ScrollDirection::Forward),
+            _ => Ok(HandleEventSuccess::unhandled()),
+        }
+    }
+
+    fn scroll_position(&self) -> Position {
+        self.scroll_position
+    }
+
     fn get_id(&self) -> ComponentId {
         self.id
     }
@@ -79,6 +178,6 @@ where
     where
         Self: 'a,
     {
-        self.child.default_draw(context)
+        context.draw_component(&self.child)
     }
 }

@@ -5,7 +5,7 @@ use tracing::Subscriber;
 use tracing_error::ErrorLayer;
 use tracing_subscriber::registry::LookupSpan;
 use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::{fmt, prelude::*, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 use crate::env;
 
@@ -43,9 +43,9 @@ mod opentelemetry {
     use super::*;
     use ::opentelemetry::trace::TracerProvider;
     use ::opentelemetry_otlp::{Protocol, WithExportConfig};
+    use ::opentelemetry_sdk::Resource;
     use ::opentelemetry_sdk::metrics::SdkMeterProvider;
     use ::opentelemetry_sdk::trace::SdkTracerProvider;
-    use ::opentelemetry_sdk::Resource;
     use ::std::time::Duration;
 
     pub fn create_tracer_layer<S>(
@@ -210,7 +210,7 @@ where
 macro_rules! tracing_dbg {
     ($expr:expr) => {{
         let result = $expr;
-        ::tracing::debug!(dbg=?result, "tracing_dbg");
+        ::tracing::debug!("{} = {result:#?}", stringify!($expr));
         result
     }};
 }

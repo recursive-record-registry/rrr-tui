@@ -1,20 +1,13 @@
 use std::borrow::Cow;
 
 use color_eyre::eyre::Result;
-use itertools::Itertools;
-use ratatui::{
-    layout::Rect,
-    style::{Color, Style},
-    text::{Line, Span, Text},
-    widgets::Widget,
-};
+use ratatui::{layout::Rect, text::Span};
 use taffy::AvailableSpace;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     action::Action,
-    color::{ColorU8Rgb, TextColor},
-    component::{Component, ComponentId, Drawable},
+    component::{Component, ComponentExt, ComponentId, Drawable},
     layout::TaffyNodeData,
     tracing_dbg,
 };
@@ -24,7 +17,7 @@ pub struct TextBlock {
     id: ComponentId,
     taffy_node_data: TaffyNodeData,
     // pub unwrapped_lines: Vec<Line<'static>>,
-    pub text: Cow<'static, str>,
+    text: Cow<'static, str>,
 }
 
 impl TextBlock {
@@ -87,6 +80,15 @@ impl TextBlock {
             }),
         )
     }
+
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+
+    pub fn set_text(&mut self, text: Cow<'static, str>) {
+        self.text = text;
+        self.mark_cached_layout_dirty();
+    }
 }
 
 impl Component for TextBlock {
@@ -116,6 +118,11 @@ impl Component for TextBlock {
             height += 1;
         }
 
+        // if let taffy::AvailableSpace::Definite(available_height) = available_space.height {
+        //     height = std::cmp::min(height, available_height as i32);
+        // }
+
+        tracing_dbg!(&available_space);
         tracing_dbg!(taffy::Size {
             width: width as f32,
             height: height as f32,
@@ -140,6 +147,7 @@ impl Drawable for TextBlock {
         let content_rect = self.get_taffy_node_data().absolute_layout().content_rect();
         let lines = self.wrapped_lines(AvailableSpace::Definite(content_rect.width as f32));
 
+        // TODO: Only render visible lines
         for (line, y) in lines.zip(content_rect.y..) {
             debug_assert!(
                 !line.as_ref().chars().any(|c| c == '\r'),
@@ -154,7 +162,7 @@ impl Drawable for TextBlock {
                 width: span.width() as u16,
                 height: 1,
             };
-            context.frame().render_widget(span, rect);
+            context.draw_widget(&span, rect);
         }
 
         Ok(())

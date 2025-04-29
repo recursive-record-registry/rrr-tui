@@ -1,11 +1,10 @@
-use std::{any::type_name, borrow::Cow};
+use std::borrow::Cow;
 
 use color_eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
-    layout::{Rect, Size},
-    style::{Style, Stylize},
-    text::{Line, Span},
+    layout::Size,
+    text::Span,
 };
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -173,8 +172,8 @@ impl Drawable for Button {
         let span_size = Size::new(span.width() as u16, 1);
         let span_area = area.align(span_size, PlaneAlignment::horizontal(LineAlignment::Center));
 
-        context.frame().render_widget(span, span_area);
-        context.frame().buffer_mut().set_style(area, text_color);
+        context.draw_widget(&span, span_area);
+        context.set_style(area, text_color);
 
         Ok(())
     }

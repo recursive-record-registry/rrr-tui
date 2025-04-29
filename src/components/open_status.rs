@@ -5,7 +5,6 @@ use color_eyre::eyre::Result;
 use easing_function::{Easing, EasingFunction};
 use ratatui::layout::{Position, Rect, Size};
 use ratatui::text::Span;
-use ratatui::widgets::Padding;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::action::Action;
@@ -40,7 +39,7 @@ impl Animation {
                     (0.5 * (1.0 + cos) * area.width.saturating_sub(1) as f32 + 0.5) as u16;
                 let position = Position::new(area.x + highlight_index, area.y);
 
-                if let Some(cell) = context.frame().buffer_mut().cell_mut(position) {
+                if let Some(cell) = context.get_scrolled_cell_mut(position) {
                     cell.set_style(highlight);
                 }
             }
@@ -64,7 +63,7 @@ impl Animation {
                     Lerp::lerp(color_start, color_end, eased)
                 };
 
-                context.frame().buffer_mut().set_style(area, style);
+                context.set_style(area, style);
             }
         }
     }
@@ -174,7 +173,7 @@ impl<'a> Drawable for OpenStatus<'a> {
             },
         );
 
-        context.frame().render_widget(line, area);
+        context.draw_widget(&line, area);
 
         if let Some(animation) = self.content.animation.as_ref() {
             animation.apply(context, area);

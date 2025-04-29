@@ -1,19 +1,30 @@
-use std::{fmt::Write, ops::ControlFlow};
+use std::{
+    fmt::Debug,
+    ops::{ControlFlow, Mul, Sub, SubAssign},
+};
 
 use ext::RoundSizeExt;
+use nalgebra::{
+    ArrayStorage, ClosedAddAssign, ClosedSubAssign, Const, Point, SVector, Scalar, SimdPartialOrd,
+    Translation2, Vector, point, vector, zero,
+};
+use num_traits::Zero;
 use ratatui::layout::{Offset, Position, Rect, Size};
+use simba::scalar::{ClosedSub, SubsetOf};
 use taffy::{
     CacheTree, LayoutBlockContainer, LayoutFlexboxContainer, LayoutGridContainer,
     LayoutPartialTree, PrintTree, RoundTree, TraversePartialTree, TraverseTree,
 };
-use tracing::Level;
 
 use crate::component::{self, ComponentId, DefaultDrawableComponent};
 
 pub mod ext {
     pub mod ratatui {
+        use nalgebra::{SVector, vector};
+
         pub trait SizeExt {
             fn into_taffy<T: From<u16>>(self) -> taffy::Size<T>;
+            fn into_nalgebra(self) -> SVector<u16, 2>;
         }
 
         impl SizeExt for ratatui::layout::Size {
@@ -23,12 +34,19 @@ pub mod ext {
                     height: self.height.into(),
                 }
             }
+
+            fn into_nalgebra(self) -> SVector<u16, 2> {
+                vector![self.width, self.height]
+            }
         }
     }
 
     pub mod taffy {
+        use nalgebra::{SVector, vector};
+
         pub trait SizeExt<T> {
             fn into_ratatui(self) -> ::ratatui::layout::Size;
+            fn into_nalgebra(self) -> SVector<T, 2>;
         }
 
         impl<T> SizeExt<T> for ::taffy::Size<T>
@@ -40,6 +58,10 @@ pub mod ext {
                     width: self.width.into(),
                     height: self.height.into(),
                 }
+            }
+
+            fn into_nalgebra(self) -> SVector<T, 2> {
+                vector![self.width, self.height]
             }
         }
 
@@ -60,7 +82,62 @@ pub mod ext {
         }
     }
 
-    pub use ratatui::*;
+    pub mod nalgebra {
+        use nalgebra::{Point, SVector, Scalar};
+        use ratatui::layout::{Position, Size};
+        use simba::scalar::SubsetOf;
+
+        pub trait PointExt<T> {
+            type TryCastResult<R>
+            where
+                R: Scalar;
+
+            fn try_cast<R>(&self) -> Option<Self::TryCastResult<R>>
+            where
+                R: Scalar + SubsetOf<T>,
+                T: Copy;
+        }
+
+        impl<T: Scalar, const D: usize> PointExt<T> for Point<T, D> {
+            type TryCastResult<R>
+                = Point<R, D>
+            where
+                R: Scalar;
+
+            fn try_cast<R>(&self) -> Option<Self::TryCastResult<R>>
+            where
+                R: Scalar + SubsetOf<T>,
+                T: Copy,
+            {
+                Some(Point {
+                    coords: self.coords.try_cast::<R>()?,
+                })
+            }
+        }
+
+        pub trait PointExtRatatui<T> {
+            fn into_ratatui(self) -> T;
+        }
+
+        impl PointExtRatatui<Position> for Point<u16, 2> {
+            fn into_ratatui(self) -> Position {
+                Position {
+                    x: self.x,
+                    y: self.y,
+                }
+            }
+        }
+
+        impl PointExtRatatui<Size> for SVector<u16, 2> {
+            fn into_ratatui(self) -> Size {
+                Size {
+                    width: self.x,
+                    height: self.y,
+                }
+            }
+        }
+    }
+
     pub use taffy::*;
 }
 
@@ -78,6 +155,7 @@ impl From<taffy::NodeId> for ComponentId {
 
 pub trait PositionExt {
     fn as_offset(self) -> Offset;
+    fn into_nalgebra(self) -> Point<u16, 2>;
 }
 
 impl PositionExt for Position {
@@ -85,6 +163,134 @@ impl PositionExt for Position {
         Offset {
             x: self.x as i32,
             y: self.y as i32,
+        }
+    }
+
+    fn into_nalgebra(self) -> Point<u16, 2> {
+        point![self.x, self.y]
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct Rectangle<T: Scalar = u16> {
+    // inclusive
+    pub min: Point<T, 2>,
+    // exclusive
+    pub max: Point<T, 2>,
+}
+
+impl<T> Debug for Rectangle<T>
+where
+    T: Scalar + Debug + ClosedSubAssign,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Rectangle")
+            .field("min", &self.min)
+            .field("max", &self.max)
+            .field("extent", &self.extent())
+            .finish()
+    }
+}
+
+impl From<Rect> for Rectangle {
+    fn from(value: Rect) -> Self {
+        Self {
+            min: point![value.x, value.y],
+            max: point![value.x + value.width, value.y + value.height],
+        }
+    }
+}
+
+impl From<Rectangle> for Rect {
+    fn from(value: Rectangle) -> Self {
+        let extent = value.extent();
+        Self {
+            x: value.min.x,
+            y: value.min.y,
+            width: extent.x,
+            height: extent.y,
+        }
+    }
+}
+
+impl<T: Scalar> Rectangle<T> {
+    pub fn intersect(&self, rhs: &Self) -> Self
+    where
+        T: SimdPartialOrd,
+    {
+        Self {
+            min: self.min.sup(&rhs.min),
+            max: self.max.inf(&rhs.max),
+        }
+    }
+
+    pub fn extent(&self) -> SVector<T, 2>
+    where
+        T: ClosedSubAssign,
+    {
+        &self.max - &self.min
+    }
+
+    pub fn is_empty(&self) -> bool
+    where
+        T: PartialOrd + ClosedSubAssign + Zero,
+    {
+        self.extent().iter().any(|c| c <= &T::zero())
+    }
+
+    pub fn area(&self) -> T
+    where
+        T: ClosedSubAssign + ClosedAddAssign + Zero,
+    {
+        self.extent().sum()
+    }
+
+    pub fn cast<R>(&self) -> Rectangle<R>
+    where
+        R: Scalar,
+        T: SubsetOf<R> + Copy,
+    {
+        Rectangle {
+            min: self.min.cast::<R>(),
+            max: self.max.cast::<R>(),
+        }
+    }
+
+    pub fn try_cast<R>(&self) -> Option<Rectangle<R>>
+    where
+        R: Scalar + SubsetOf<T>,
+        T: Copy,
+    {
+        Some(Rectangle {
+            min: Point {
+                coords: self.min.coords.try_cast::<R>()?,
+            },
+            max: Point {
+                coords: self.max.coords.try_cast::<R>()?,
+            },
+        })
+    }
+
+    pub fn translated(&self, vec: SVector<T, 2>) -> Self
+    where
+        T: ClosedAddAssign,
+    {
+        Self {
+            min: Translation2::from(vec.clone()).transform_point(&self.min),
+            max: Translation2::from(vec).transform_point(&self.max),
+        }
+    }
+}
+
+impl Rectangle<i16> {
+    pub fn clip(&self) -> Rectangle<u16> {
+        Rectangle {
+            min: Point {
+                coords: self.min.coords.sup(&zero()).try_cast::<u16>().unwrap(),
+            },
+            max: Point {
+                coords: self.max.coords.sup(&zero()).try_cast::<u16>().unwrap(),
+            },
         }
     }
 }
@@ -135,6 +341,7 @@ pub struct AbsoluteLayout {
     pub(self) padding_rect: Rect,
     /// The outermost rectangle containing the border, the padding, and the content.
     pub(self) border_rect: Rect,
+    pub(self) scroll_position: Position,
 }
 
 impl AbsoluteLayout {
@@ -148,6 +355,14 @@ impl AbsoluteLayout {
 
     pub fn border_rect(&self) -> Rect {
         self.border_rect
+    }
+
+    pub fn scroll_position(&self) -> Position {
+        self.scroll_position
+    }
+
+    pub fn overflow_size(&self) -> Size {
+        self.overflow_size
     }
 }
 
@@ -476,6 +691,7 @@ pub fn compute_absolute_layout(
         root_component,
         &frame_area,
         &mut |component, parent_area| {
+            let scroll_position = component.scroll_position();
             let taffy_node_data = component.get_taffy_node_data_mut();
             let layout = &taffy_node_data.rounded_layout;
             let absolute_layout = &mut taffy_node_data.absolute_layout;
@@ -489,6 +705,7 @@ pub fn compute_absolute_layout(
             absolute_layout.border_rect = layout
                 .border_rect()
                 .offset(parent_area.as_position().as_offset());
+            absolute_layout.scroll_position = scroll_position;
             ControlFlow::Continue(absolute_layout.padding_rect)
         },
         &mut |_, _| ControlFlow::Continue(()),
@@ -497,6 +714,8 @@ pub fn compute_absolute_layout(
 
 #[cfg(feature = "debug")]
 pub fn trace_tree_custom(root: &dyn DefaultDrawableComponent) {
+    use std::fmt::Write;
+
     struct PreorderData {
         lines: String,
         last_child_id: ComponentId,
@@ -518,7 +737,7 @@ pub fn trace_tree_custom(root: &dyn DefaultDrawableComponent) {
             let absolute_layout = &taffy_node_data.absolute_layout;
             writeln! {
                 &mut buffer_string,
-                "{lines}{fork}{label} [ xr: {xr}, yr: {yr}, xa: {xa}, ya: {ya}, w: {w}, h: {h}, wo: {wo}, ho: {ho} ]",
+                "{lines}{fork}{label} [ xr: {xr}, yr: {yr}, xa: {xa}, ya: {ya}, w: {w}, h: {h}, wo: {wo}, ho: {ho}, xs: {xs}, ys: {ys} ]",
                 lines = preorder_data.lines,
                 label = component.get_debug_label(),
                 fork = if preorder_data.first {
@@ -536,6 +755,8 @@ pub fn trace_tree_custom(root: &dyn DefaultDrawableComponent) {
                 h = absolute_layout.border_rect.height,
                 wo = absolute_layout.overflow_size.width,
                 ho = absolute_layout.overflow_size.height,
+                xs = absolute_layout.scroll_position.x,
+                ys = absolute_layout.scroll_position.y,
             }
             .unwrap();
             ControlFlow::Continue(PreorderData {
@@ -567,6 +788,8 @@ pub fn trace_tree_custom(root: &dyn DefaultDrawableComponent) {
 /// Based on `taffy::print_tree`.
 #[cfg(feature = "debug")]
 pub fn trace_tree(tree: &impl PrintTree, root: taffy::NodeId) {
+    use std::fmt::Write;
+
     let mut buffer_string = "\nTREE\n".to_string();
     print_node(tree, root, false, String::new(), &mut buffer_string).unwrap();
 
