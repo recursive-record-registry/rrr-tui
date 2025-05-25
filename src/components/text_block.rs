@@ -8,6 +8,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::{
     action::Action,
     component::{Component, ComponentExt, ComponentId, Drawable},
+    geometry::Rectangle,
     layout::TaffyNodeData,
     tracing_dbg,
 };
@@ -145,23 +146,17 @@ impl Drawable for TextBlock {
         Self: 'a,
     {
         let content_rect = self.get_taffy_node_data().absolute_layout().content_rect();
-        let lines = self.wrapped_lines(AvailableSpace::Definite(content_rect.width as f32));
+        let lines = self.wrapped_lines(AvailableSpace::Definite(content_rect.extent().x as f32));
 
         // TODO: Only render visible lines
-        for (line, y) in lines.zip(content_rect.y..) {
+        for (line, y) in lines.zip(content_rect.min().y..) {
             debug_assert!(
                 !line.as_ref().chars().any(|c| c == '\r'),
                 "Carriage returns mess with style rendering."
             );
 
             let span = Span::raw(line);
-            let rect = Rect {
-                x: content_rect.x,
-                y,
-                // width: content_rect.width,
-                width: span.width() as u16,
-                height: 1,
-            };
+            let rect = Rectangle::from_extent([content_rect.min().x, y], [span.width() as u16, 1]);
             context.draw_widget(&span, rect);
         }
 

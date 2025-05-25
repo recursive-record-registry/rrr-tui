@@ -1,5 +1,6 @@
 use std::{fmt::Debug, ops::ControlFlow};
 
+use nalgebra::{Point, SVector};
 use ratatui::layout::{Position, Rect, Size};
 use taffy::{
     CacheTree, LayoutBlockContainer, LayoutFlexboxContainer, LayoutGridContainer,
@@ -8,7 +9,10 @@ use taffy::{
 
 use crate::{
     component::{self, DefaultDrawableComponent},
-    geometry::{PositionExt, ext::RoundSizeExt},
+    geometry::{
+        PositionExt, Rectangle,
+        ext::{RoundSizeExt, SizeExtNalgebra},
+    },
 };
 
 pub trait LayoutExt {
@@ -50,44 +54,44 @@ impl LayoutExt for taffy::Layout {
 #[derive(Default, Debug, Clone)]
 pub struct AbsoluteLayout {
     /// The rectangle containing the overflowing content.
-    pub(self) overflow_size: Size,
+    pub(self) overflow_size: SVector<u16, 2>,
     /// The rectangle containing the clipped content.
-    pub(self) content_rect: Rect,
+    pub(self) content_rect: Rectangle,
     /// The rectangle containing the padding, and the content.
-    pub(self) padding_rect: Rect,
+    pub(self) padding_rect: Rectangle,
     /// The outermost rectangle containing the border, the padding, and the content.
-    pub(self) border_rect: Rect,
-    pub(self) scroll_position: Position,
+    pub(self) border_rect: Rectangle,
+    pub(self) scroll_position: Point<u16, 2>,
 }
 
 impl AbsoluteLayout {
-    pub fn content_rect(&self) -> Rect {
+    pub fn content_rect(&self) -> Rectangle {
         self.content_rect
     }
 
-    pub fn padding_rect(&self) -> Rect {
+    pub fn padding_rect(&self) -> Rectangle {
         self.padding_rect
     }
 
-    pub fn border_rect(&self) -> Rect {
+    pub fn border_rect(&self) -> Rectangle {
         self.border_rect
     }
 
-    pub fn scroll_position(&self) -> Position {
+    pub fn scroll_position(&self) -> Point<u16, 2> {
         self.scroll_position
     }
 
-    pub fn overflow_size(&self) -> Size {
+    pub fn overflow_size(&self) -> SVector<u16, 2> {
         self.overflow_size
     }
 
-    pub fn max_content_overflow_rect(&self) -> Rect {
-        Rect {
-            x: self.content_rect.x,
-            y: self.content_rect.y,
-            width: std::cmp::max(self.content_rect.width, self.overflow_size.width),
-            height: std::cmp::max(self.content_rect.height, self.overflow_size.height),
-        }
+    pub fn max_content_overflow_rect(&self) -> Rectangle {
+        Rectangle::from_minmax(
+            self.content_rect.min(),
+            self.content_rect
+                .max()
+                .sup(&(self.content_rect.min() + self.overflow_size)),
+        )
     }
 }
 
@@ -412,26 +416,38 @@ pub fn compute_absolute_layout(
     root_component: &mut dyn DefaultDrawableComponent,
     frame_area: Rect,
 ) {
-    let _ = component::depth_first_search_with_data_mut::<(), Rect, ()>(
+    struct PreorderData {
+        overflow_clip_area: Rectangle<u16>,
+        absolute_position_offset: Point<u16, 2>,
+    }
+
+    let _ = component::depth_first_search_with_data_mut::<(), PreorderData, ()>(
         root_component,
-        &frame_area,
-        &mut |component, parent_area| {
+        &PreorderData {
+            overflow_clip_area: frame_area.into(),
+            absolute_position_offset: frame_area.as_position().into_nalgebra(),
+        },
+        &mut |component, preorder_data| {
             let scroll_position = component.scroll_position();
             let taffy_node_data = component.get_taffy_node_data_mut();
             let layout = &taffy_node_data.rounded_layout;
             let absolute_layout = &mut taffy_node_data.absolute_layout;
-            absolute_layout.overflow_size = layout.content_size.rounded_into_ratatui();
-            absolute_layout.content_rect = layout
-                .content_rect()
-                .offset(parent_area.as_position().as_offset());
-            absolute_layout.padding_rect = layout
-                .padding_rect()
-                .offset(parent_area.as_position().as_offset());
-            absolute_layout.border_rect = layout
-                .border_rect()
-                .offset(parent_area.as_position().as_offset());
-            absolute_layout.scroll_position = scroll_position;
-            ControlFlow::Continue(absolute_layout.padding_rect)
+            absolute_layout.overflow_size = layout
+                .content_size
+                .into_nalgebra()
+                .try_cast::<u16>()
+                .unwrap_or_default();
+            absolute_layout.content_rect = Rectangle::from(layout.content_rect())
+                .translated(preorder_data.absolute_position_offset.coords);
+            absolute_layout.padding_rect = Rectangle::from(layout.padding_rect())
+                .translated(preorder_data.absolute_position_offset.coords);
+            absolute_layout.border_rect = Rectangle::from(layout.border_rect())
+                .translated(preorder_data.absolute_position_offset.coords);
+            absolute_layout.scroll_position = scroll_position.into_nalgebra();
+            ControlFlow::Continue(PreorderData {
+                overflow_clip_area: absolute_layout.padding_rect.into(),
+                absolute_position_offset: absolute_layout.padding_rect.min(),
+            })
         },
         &mut |_, _| ControlFlow::Continue(()),
     );
@@ -476,12 +492,12 @@ pub fn trace_tree_custom(root: &dyn DefaultDrawableComponent) {
                 },
                 xr = rounded_layout.location.x,
                 yr = rounded_layout.location.y,
-                xa = absolute_layout.border_rect.x,
-                ya = absolute_layout.border_rect.y,
-                w = absolute_layout.border_rect.width,
-                h = absolute_layout.border_rect.height,
-                wo = absolute_layout.overflow_size.width,
-                ho = absolute_layout.overflow_size.height,
+                xa = absolute_layout.border_rect.min().x,
+                ya = absolute_layout.border_rect.min().y,
+                w = absolute_layout.border_rect.extent().x,
+                h = absolute_layout.border_rect.extent().y,
+                wo = absolute_layout.overflow_size.x,
+                ho = absolute_layout.overflow_size.y,
                 xs = absolute_layout.scroll_position.x,
                 ys = absolute_layout.scroll_position.y,
             }

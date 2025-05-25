@@ -139,7 +139,7 @@ impl Drawable for Checkbox {
             return Ok(());
         }
 
-        area.height = 1;
+        area.set_height(1);
         let focused = context.focused_id() == self.id;
         let checkmark_style = if focused {
             Style::new().reversed()

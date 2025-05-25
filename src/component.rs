@@ -6,6 +6,7 @@ use std::{
 };
 
 use color_eyre::Result;
+use nalgebra::{Point, Translation2};
 use ratatui::{
     Frame,
     buffer::{Buffer, Cell},
@@ -23,6 +24,7 @@ use crate::{
         ext::nalgebra::{PointExt, PointExtRatatui},
     },
     layout::{AbsoluteLayout, TaffyNodeData},
+    tracing_dbg,
     tui::Event,
 };
 
@@ -368,7 +370,7 @@ pub struct DrawContext<'a, 'b: 'a> {
     /// Time elapsed since the app was launched until `now`.
     elapsed_time: Duration,
     /// The writeable region of the frame.
-    view: Rect,
+    view: Rectangle<u16>,
     /// Offset relative to the top left corner of the `view`, to render the content from.
     /// Used for scrolling behavior.
     scroll_position_relative: Position,
@@ -384,7 +386,7 @@ impl<'a, 'b: 'a> DrawContext<'a, 'b> {
         elapsed_time: Duration,
     ) -> Self {
         Self {
-            view: frame.area(),
+            view: frame.area().into(),
             frame,
             focused_id,
             now,
@@ -432,22 +434,23 @@ impl<'a, 'b: 'a> DrawContext<'a, 'b> {
         self.elapsed_time
     }
 
-    pub fn view(&self) -> Rect {
+    pub fn view(&self) -> Rectangle {
         self.view
     }
 
-    pub fn get_scrolled_area(&self, area_relative: Rect) -> (Rectangle<i16>, Rectangle<i16>) {
-        let offset_area = Rectangle::from(area_relative).cast::<i16>().translated(
+    pub fn get_scrolled_area(
+        &self,
+        area_relative: impl Into<Rectangle<u16>>,
+    ) -> (Rectangle<i16>, Rectangle<i16>) {
+        let offset_area = area_relative.into().cast::<i16>().translated(
             -self
                 .scroll_position_absolute
                 .into_nalgebra()
                 .coords
                 .cast::<i16>(),
         );
-        let area_in_buffer = Rectangle::from(self.view)
-            .cast::<i16>()
-            .intersect(&offset_area);
-        let area_in_widget = area_in_buffer.translated(-offset_area.min.coords);
+        let area_in_buffer = self.view.cast::<i16>().intersect(&offset_area);
+        let area_in_widget = area_in_buffer.translated(-offset_area.min().coords);
 
         (area_in_buffer, area_in_widget)
     }
@@ -466,17 +469,20 @@ impl<'a, 'b: 'a> DrawContext<'a, 'b> {
         let area_in_buffer = Rectangle::from(self.view)
             .cast::<i16>()
             .intersect(&offset_area);
-        let area_in_widget = area_in_buffer.translated(-offset_area.min.coords);
+        let area_in_widget = area_in_buffer.translated(-offset_area.min().coords);
 
         (area_in_buffer, area_in_widget)
     }
 
-    pub fn get_scrolled_cell_mut(&mut self, position: impl Into<Position>) -> Option<&mut Cell> {
-        let mut position: Position = position.into();
+    pub fn get_scrolled_cell_mut(
+        &mut self,
+        position: impl Into<Point<u16, 2>>,
+    ) -> Option<&mut Cell> {
+        let mut position = position.into();
         position.x = position.x.checked_sub(self.scroll_position_absolute.x)?;
         position.y = position.y.checked_sub(self.scroll_position_absolute.y)?;
         if self.view.contains(position) {
-            self.frame.buffer_mut().cell_mut(position)
+            self.frame.buffer_mut().cell_mut(position.into_ratatui())
         } else {
             None
         }
@@ -494,7 +500,7 @@ impl<'a, 'b: 'a> DrawContext<'a, 'b> {
     //     }
     // }
 
-    pub fn set_style(&mut self, area_relative: Rect, style: impl Into<Style>) {
+    pub fn set_style(&mut self, area_relative: impl Into<Rectangle>, style: impl Into<Style>) {
         let (area_absolute, _) = self.get_scrolled_area(area_relative);
         if !area_absolute.is_empty() {
             self.frame
@@ -503,7 +509,7 @@ impl<'a, 'b: 'a> DrawContext<'a, 'b> {
         }
     }
 
-    pub fn draw_widget<W: WidgetRef + Debug>(&mut self, widget: &W, area_relative: Rect) {
+    pub fn draw_widget<W: WidgetRef + Debug>(&mut self, widget: &W, area_relative: Rectangle) {
         // let d = false;
 
         // if d {
@@ -517,8 +523,8 @@ impl<'a, 'b: 'a> DrawContext<'a, 'b> {
 
             if !intersection.is_empty() {
                 let draw_area = Rect {
-                    width: area_relative.width,
-                    height: area_relative.height,
+                    width: area_relative.extent().x,
+                    height: area_relative.extent().y,
                     ..Default::default()
                 };
                 // TODO: Only use buffer if the element doesn't fully fit into the view.
@@ -528,11 +534,11 @@ impl<'a, 'b: 'a> DrawContext<'a, 'b> {
                 self.frame.buffer_mut().blit(
                     &tmp_buffer,
                     intersection_in_widget
-                        .min
+                        .min()
                         .try_cast::<u16>()
                         .unwrap()
                         .into_ratatui(),
-                    intersection.min.try_cast::<u16>().unwrap().into_ratatui(),
+                    intersection.min().try_cast::<u16>().unwrap().into_ratatui(),
                     intersection
                         .extent()
                         .try_cast::<u16>()
@@ -542,9 +548,9 @@ impl<'a, 'b: 'a> DrawContext<'a, 'b> {
                 // self.frame.render_stateful_widget_ref(widget, area, state);
             }
         } else {
-            let area = area_relative.intersection(self.view);
+            let area = area_relative.intersect(&self.view);
             if !area.is_empty() {
-                widget.render_ref(area, self.frame.buffer_mut());
+                widget.render_ref(area.into(), self.frame.buffer_mut());
             }
         }
     }
@@ -552,15 +558,15 @@ impl<'a, 'b: 'a> DrawContext<'a, 'b> {
     pub fn draw_stateful_widget<W: StatefulWidgetRef>(
         &mut self,
         widget: W,
-        area_relative: Rect,
+        area_relative: Rectangle,
         state: &mut W::State,
     ) {
         if self.scroll_position_absolute != Position::ORIGIN {
             todo!();
         } else {
-            let area = area_relative.intersection(self.view);
+            let area = area_relative.intersect(&self.view);
             if !area.is_empty() {
-                widget.render_ref(area, self.frame.buffer_mut(), state);
+                widget.render_ref(area.into(), self.frame.buffer_mut(), state);
             }
         }
     }

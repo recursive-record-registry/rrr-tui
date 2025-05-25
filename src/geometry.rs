@@ -1,8 +1,8 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, ops::Range};
 
 use nalgebra::{
-    ClosedAddAssign, ClosedSubAssign, Point, SVector, Scalar, SimdPartialOrd,
-    Translation2, point, zero,
+    ClosedAddAssign, ClosedSubAssign, Point, SVector, Scalar, SimdPartialOrd, Translation2, point,
+    vector, zero,
 };
 use num_traits::Zero;
 use ratatui::layout::{Offset, Position, Rect};
@@ -36,9 +36,12 @@ pub mod ext {
     pub mod taffy {
         use nalgebra::{SVector, vector};
 
+        pub trait SizeExtNalgebra<T> {
+            fn into_nalgebra(self) -> SVector<T, 2>;
+        }
+
         pub trait SizeExt<T> {
             fn into_ratatui(self) -> ::ratatui::layout::Size;
-            fn into_nalgebra(self) -> SVector<T, 2>;
         }
 
         impl<T> SizeExt<T> for ::taffy::Size<T>
@@ -51,7 +54,9 @@ pub mod ext {
                     height: self.height.into(),
                 }
             }
+        }
 
+        impl<T> SizeExtNalgebra<T> for ::taffy::Size<T> {
             fn into_nalgebra(self) -> SVector<T, 2> {
                 vector![self.width, self.height]
             }
@@ -163,22 +168,22 @@ impl PositionExt for Position {
     }
 }
 
-#[derive(Clone, Copy)]
-pub struct Rectangle<T: Scalar = u16> {
+#[derive(Clone, Copy, Default)]
+pub struct Rectangle<T: Scalar + Zero = u16> {
     // inclusive
-    pub min: Point<T, 2>,
+    min: Point<T, 2>,
     // exclusive
-    pub max: Point<T, 2>,
+    max: Point<T, 2>,
 }
 
 impl<T> Debug for Rectangle<T>
 where
-    T: Scalar + Debug + ClosedSubAssign,
+    T: Scalar + Zero + Debug + ClosedSubAssign + Copy,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Rectangle")
-            .field("min", &self.min)
-            .field("max", &self.max)
+            .field("min", &self.min())
+            .field("max", &self.max())
             .field("extent", &self.extent())
             .finish()
     }
@@ -186,26 +191,48 @@ where
 
 impl From<Rect> for Rectangle {
     fn from(value: Rect) -> Self {
-        Self {
-            min: point![value.x, value.y],
-            max: point![value.x + value.width, value.y + value.height],
-        }
+        Self::from_extent(point![value.x, value.y], vector![value.width, value.height])
     }
 }
 
 impl From<Rectangle> for Rect {
     fn from(value: Rectangle) -> Self {
+        let min = value.min();
         let extent = value.extent();
         Self {
-            x: value.min.x,
-            y: value.min.y,
+            x: min.x,
+            y: min.y,
             width: extent.x,
             height: extent.y,
         }
     }
 }
 
-impl<T: Scalar> Rectangle<T> {
+impl<T: Scalar + Zero, P: Into<Point<T, 2>>> From<Range<P>> for Rectangle<T> {
+    fn from(value: Range<P>) -> Self {
+        Self::from_minmax(value.start.into(), value.end.into())
+    }
+}
+
+impl<T: Scalar + Zero> Rectangle<T> {
+    pub fn from_minmax(min: impl Into<Point<T, 2>>, max: impl Into<Point<T, 2>>) -> Self {
+        Self {
+            min: min.into(),
+            max: max.into(),
+        }
+    }
+
+    pub fn from_extent(min: impl Into<Point<T, 2>>, extent: impl Into<SVector<T, 2>>) -> Self
+    where
+        T: ClosedAddAssign,
+    {
+        let min = min.into();
+        Self {
+            max: &min + extent.into(),
+            min,
+        }
+    }
+
     pub fn intersect(&self, rhs: &Self) -> Self
     where
         T: SimdPartialOrd,
@@ -214,6 +241,73 @@ impl<T: Scalar> Rectangle<T> {
             min: self.min.sup(&rhs.min),
             max: self.max.inf(&rhs.max),
         }
+    }
+
+    pub fn set_min(&mut self, min: impl Into<Point<T, 2>>) {
+        self.min = min.into();
+    }
+
+    pub fn set_max(&mut self, max: impl Into<Point<T, 2>>) {
+        self.max = max.into();
+    }
+
+    pub fn set_extent(&mut self, extent: impl Into<SVector<T, 2>>)
+    where
+        T: ClosedAddAssign,
+    {
+        self.max = &self.min + extent.into();
+    }
+
+    pub fn with_extent(mut self, extent: impl Into<SVector<T, 2>>) -> Self
+    where
+        T: ClosedAddAssign,
+    {
+        self.set_extent(extent);
+        self
+    }
+
+    pub fn set_width(&mut self, width: T)
+    where
+        T: ClosedAddAssign + Copy,
+    {
+        self.max.x = self.min.x + width;
+    }
+
+    pub fn with_width(mut self, width: T) -> Self
+    where
+        T: ClosedAddAssign + Copy,
+    {
+        self.set_width(width);
+        self
+    }
+
+    pub fn set_height(&mut self, height: T)
+    where
+        T: ClosedAddAssign + Copy,
+    {
+        self.max.y = self.min.y + height;
+    }
+
+    pub fn with_height(mut self, height: T) -> Self
+    where
+        T: ClosedAddAssign + Copy,
+    {
+        self.set_height(height);
+        self
+    }
+
+    pub fn min(&self) -> Point<T, 2>
+    where
+        T: Copy,
+    {
+        self.min
+    }
+
+    pub fn max(&self) -> Point<T, 2>
+    where
+        T: Copy,
+    {
+        self.max
     }
 
     pub fn extent(&self) -> SVector<T, 2>
@@ -239,7 +333,7 @@ impl<T: Scalar> Rectangle<T> {
 
     pub fn cast<R>(&self) -> Rectangle<R>
     where
-        R: Scalar,
+        R: Scalar + Zero,
         T: SubsetOf<R> + Copy,
     {
         Rectangle {
@@ -250,7 +344,7 @@ impl<T: Scalar> Rectangle<T> {
 
     pub fn try_cast<R>(&self) -> Option<Rectangle<R>>
     where
-        R: Scalar + SubsetOf<T>,
+        R: Scalar + Zero + SubsetOf<T>,
         T: Copy,
     {
         Some(Rectangle {
@@ -271,6 +365,16 @@ impl<T: Scalar> Rectangle<T> {
             min: Translation2::from(vec.clone()).transform_point(&self.min),
             max: Translation2::from(vec).transform_point(&self.max),
         }
+    }
+
+    pub fn contains(&self, point: Point<T, 2>) -> bool
+    where
+        T: PartialOrd,
+    {
+        point.x >= self.min.x
+            && point.x < self.max.x
+            && point.y >= self.min.y
+            && point.y < self.max.y
     }
 }
 
