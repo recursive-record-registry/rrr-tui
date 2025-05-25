@@ -4,9 +4,8 @@ use std::rc::Rc;
 
 use color_eyre::eyre::Result;
 use ratatui::prelude::*;
-use ratatui::widgets::Paragraph;
-use taffy::prelude::{auto, length, percent, zero};
-use taffy::{BoxSizing, Display, FlexDirection};
+use taffy::prelude::{auto, length, percent};
+use taffy::{BoxSizing, Display};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::action::{Action, ComponentMessage};

@@ -13,7 +13,7 @@ use rrr::record::{HashedRecordKey, RECORD_NAME_ROOT, RecordReadVersionSuccess, S
 use rrr::registry::Registry;
 use rrr::utils::fd_lock::ReadLock;
 use taffy::Dimension;
-use taffy::prelude::{auto, fr, length, line, min_content, minmax, zero};
+use taffy::prelude::{fr, length, line, min_content, minmax, zero};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::action::{Action, ComponentMessage};

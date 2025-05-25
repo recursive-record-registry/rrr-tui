@@ -1,22 +1,13 @@
-use std::{
-    fmt::Debug,
-    ops::{ControlFlow, Mul, Sub, SubAssign},
-};
+use std::{fmt::Debug, ops::ControlFlow};
 
-use nalgebra::{
-    ArrayStorage, ClosedAddAssign, ClosedSubAssign, Const, Point, SVector, Scalar, SimdPartialOrd,
-    Translation2, Vector, point, vector, zero,
-};
-use num_traits::Zero;
-use ratatui::layout::{Offset, Position, Rect, Size};
-use simba::scalar::{ClosedSub, SubsetOf};
+use ratatui::layout::{Position, Rect, Size};
 use taffy::{
     CacheTree, LayoutBlockContainer, LayoutFlexboxContainer, LayoutGridContainer,
     LayoutPartialTree, PrintTree, RoundTree, TraversePartialTree, TraverseTree,
 };
 
 use crate::{
-    component::{self, ComponentId, DefaultDrawableComponent},
+    component::{self, DefaultDrawableComponent},
     geometry::{PositionExt, ext::RoundSizeExt},
 };
 
@@ -449,6 +440,8 @@ pub fn compute_absolute_layout(
 #[cfg(feature = "debug")]
 pub fn trace_tree_custom(root: &dyn DefaultDrawableComponent) {
     use std::fmt::Write;
+
+    use crate::component::ComponentId;
 
     struct PreorderData {
         lines: String,
