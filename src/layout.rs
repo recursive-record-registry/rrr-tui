@@ -10,7 +10,7 @@ use taffy::{
 use crate::{
     component::{self, DefaultDrawableComponent},
     geometry::{
-        PositionExt, Rectangle,
+        IntoNalgebra, Rectangle,
         ext::{RoundSizeExt, SizeExtNalgebra},
     },
 };
@@ -57,6 +57,9 @@ pub struct AbsoluteLayout {
     pub(self) overflow_size: SVector<u16, 2>,
     /// The rectangle containing the clipped content.
     pub(self) content_rect: Rectangle,
+    /// The rectangle containing the unclipped content.
+    #[cfg(feature = "debug")]
+    pub(self) content_rect_unclipped: Rectangle,
     /// The rectangle containing the padding, and the content.
     pub(self) padding_rect: Rectangle,
     /// The outermost rectangle containing the border, the padding, and the content.
@@ -67,6 +70,11 @@ pub struct AbsoluteLayout {
 impl AbsoluteLayout {
     pub fn content_rect(&self) -> Rectangle {
         self.content_rect
+    }
+
+    #[cfg(feature = "debug")]
+    pub fn content_rect_unclipped(&self) -> Rectangle {
+        self.content_rect_unclipped
     }
 
     pub fn padding_rect(&self) -> Rectangle {
@@ -418,17 +426,42 @@ pub fn compute_absolute_layout(
 ) {
     struct PreorderData {
         overflow_clip_area: Rectangle<u16>,
-        absolute_position_offset: Point<u16, 2>,
+        absolute_position_offset: SVector<i16, 2>,
+        predecessor_cumulative_scroll: SVector<u16, 2>,
+    }
+
+    impl PreorderData {
+        pub fn get_scrolled_area(
+            &self,
+            area_relative: impl Into<Rectangle<u16>>,
+        ) -> (Rectangle<i16>, Rectangle<i16>, Rectangle<i16>) {
+            let offset_area = area_relative
+                .into()
+                .cast::<i16>()
+                .translated(self.absolute_position_offset);
+            let area_in_buffer = self
+                .overflow_clip_area
+                .cast::<i16>()
+                .intersect(&offset_area);
+            let area_in_widget = area_in_buffer.translated(-offset_area.min().coords);
+
+            (area_in_buffer, offset_area, area_in_widget)
+        }
     }
 
     let _ = component::depth_first_search_with_data_mut::<(), PreorderData, ()>(
         root_component,
         &PreorderData {
             overflow_clip_area: frame_area.into(),
-            absolute_position_offset: frame_area.as_position().into_nalgebra(),
+            absolute_position_offset: frame_area
+                .as_position()
+                .into_nalgebra()
+                .coords
+                .cast::<i16>(),
+            predecessor_cumulative_scroll: Default::default(),
         },
         &mut |component, preorder_data| {
-            let scroll_position = component.scroll_position();
+            let scroll_position = component.scroll_position().into_nalgebra();
             let taffy_node_data = component.get_taffy_node_data_mut();
             let layout = &taffy_node_data.rounded_layout;
             let absolute_layout = &mut taffy_node_data.absolute_layout;
@@ -437,16 +470,32 @@ pub fn compute_absolute_layout(
                 .into_nalgebra()
                 .try_cast::<u16>()
                 .unwrap_or_default();
-            absolute_layout.content_rect = Rectangle::from(layout.content_rect())
-                .translated(preorder_data.absolute_position_offset.coords);
-            absolute_layout.padding_rect = Rectangle::from(layout.padding_rect())
-                .translated(preorder_data.absolute_position_offset.coords);
-            absolute_layout.border_rect = Rectangle::from(layout.border_rect())
-                .translated(preorder_data.absolute_position_offset.coords);
-            absolute_layout.scroll_position = scroll_position.into_nalgebra();
+            absolute_layout.content_rect = preorder_data
+                .get_scrolled_area(layout.content_rect())
+                .0
+                .clip();
+            #[cfg(feature = "debug")]
+            {
+                absolute_layout.content_rect_unclipped = preorder_data
+                    .get_scrolled_area(layout.content_rect())
+                    .1
+                    .clip();
+            }
+            absolute_layout.padding_rect = preorder_data
+                .get_scrolled_area(layout.padding_rect())
+                .0
+                .clip();
+            absolute_layout.border_rect = preorder_data
+                .get_scrolled_area(layout.border_rect())
+                .0
+                .clip();
+            absolute_layout.scroll_position = scroll_position;
             ControlFlow::Continue(PreorderData {
-                overflow_clip_area: absolute_layout.padding_rect.into(),
-                absolute_position_offset: absolute_layout.padding_rect.min(),
+                overflow_clip_area: absolute_layout.padding_rect,
+                predecessor_cumulative_scroll: preorder_data.predecessor_cumulative_scroll
+                    + scroll_position.coords,
+                absolute_position_offset: absolute_layout.padding_rect.min().cast::<i16>().coords
+                    - preorder_data.predecessor_cumulative_scroll.cast::<i16>(),
             })
         },
         &mut |_, _| ControlFlow::Continue(()),

@@ -1,10 +1,11 @@
 use std::{fmt::Debug, ops::Range};
 
+use ext::nalgebra::PointExt;
 use nalgebra::{
     ClosedAddAssign, ClosedSubAssign, Point, SVector, Scalar, SimdPartialOrd, Translation2, point,
     vector, zero,
 };
-use num_traits::Zero;
+use num_traits::{SaturatingSub, Zero};
 use ratatui::layout::{Offset, Position, Rect};
 use simba::scalar::SubsetOf;
 
@@ -150,21 +151,22 @@ impl From<taffy::NodeId> for ComponentId {
     }
 }
 
-pub trait PositionExt {
-    fn as_offset(self) -> Offset;
-    fn into_nalgebra(self) -> Point<u16, 2>;
+pub trait IntoNalgebra {
+    type Output;
+    fn into_nalgebra(self) -> Self::Output;
 }
 
-impl PositionExt for Position {
-    fn as_offset(self) -> Offset {
-        Offset {
-            x: self.x as i32,
-            y: self.y as i32,
-        }
-    }
-
-    fn into_nalgebra(self) -> Point<u16, 2> {
+impl IntoNalgebra for Position {
+    type Output = Point<u16, 2>;
+    fn into_nalgebra(self) -> Self::Output {
         point![self.x, self.y]
+    }
+}
+
+impl IntoNalgebra for Offset {
+    type Output = SVector<i32, 2>;
+    fn into_nalgebra(self) -> Self::Output {
+        vector![self.x, self.y]
     }
 }
 
@@ -178,7 +180,7 @@ pub struct Rectangle<T: Scalar + Zero = u16> {
 
 impl<T> Debug for Rectangle<T>
 where
-    T: Scalar + Zero + Debug + ClosedSubAssign + Copy,
+    T: Scalar + Zero + Debug + ClosedSubAssign + Copy + SaturatingSub,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Rectangle")
@@ -312,21 +314,24 @@ impl<T: Scalar + Zero> Rectangle<T> {
 
     pub fn extent(&self) -> SVector<T, 2>
     where
-        T: ClosedSubAssign,
+        T: ClosedSubAssign + SaturatingSub,
     {
-        &self.max - &self.min
+        vector![
+            self.max.x.saturating_sub(&self.min.x),
+            self.max.y.saturating_sub(&self.min.y),
+        ]
     }
 
     pub fn is_empty(&self) -> bool
     where
-        T: PartialOrd + ClosedSubAssign + Zero,
+        T: PartialOrd + ClosedSubAssign + Zero + SaturatingSub,
     {
         self.extent().iter().any(|c| c <= &T::zero())
     }
 
     pub fn area(&self) -> T
     where
-        T: ClosedSubAssign + ClosedAddAssign + Zero,
+        T: ClosedSubAssign + ClosedAddAssign + Zero + SaturatingSub,
     {
         self.extent().sum()
     }
@@ -380,6 +385,16 @@ impl<T: Scalar + Zero> Rectangle<T> {
 
 impl Rectangle<i16> {
     pub fn clip(&self) -> Rectangle<u16> {
+        // let min = Point {
+        //     coords: self.min.coords.sup(&zero()),
+        // };
+        // let max = Point {
+        //     coords: self.max.coords.sup(&min.coords),
+        // };
+        // Rectangle {
+        //     min: min.try_cast::<u16>().unwrap(),
+        //     max: max.try_cast::<u16>().unwrap(),
+        // }
         Rectangle {
             min: Point {
                 coords: self.min.coords.sup(&zero()).try_cast::<u16>().unwrap(),
