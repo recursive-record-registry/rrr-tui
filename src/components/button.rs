@@ -2,10 +2,7 @@ use std::borrow::Cow;
 
 use color_eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
-use ratatui::{
-    layout::Size,
-    text::Span,
-};
+use ratatui::{layout::Size, text::Span};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
@@ -159,7 +156,7 @@ impl Drawable for Button {
             return Ok(());
         }
 
-        area.height = 1;
+        area.set_height(1);
         let focused = context.focused_id() == self.id;
         let text_color = if self.held_down {
             &self.text_color_pressed

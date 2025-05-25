@@ -293,7 +293,7 @@ impl Drawable for InputField {
             return Ok(());
         }
 
-        area.height = 1;
+        area.set_height(1);
 
         let focused = context.focused_id() == self.id;
 

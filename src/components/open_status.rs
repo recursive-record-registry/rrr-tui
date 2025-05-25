@@ -10,6 +10,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::action::Action;
 use crate::color::{Lerp, TextColor};
 use crate::component::{Component, ComponentExt, ComponentId, DrawContext, Drawable};
+use crate::geometry::Rectangle;
 use crate::layout::TaffyNodeData;
 use crate::rect::{LineAlignment, PlaneAlignment, RectExt};
 
@@ -29,15 +30,15 @@ pub enum Animation {
 }
 
 impl Animation {
-    fn apply(&self, context: &mut DrawContext, area: Rect) {
+    fn apply(&self, context: &mut DrawContext, area: Rectangle) {
         match self {
             Animation::ProgressIndeterminate { period, highlight } => {
                 let cos = (context.elapsed_time().as_secs_f32() * std::f32::consts::TAU
                     / period.as_secs_f32())
                 .cos();
                 let highlight_index =
-                    (0.5 * (1.0 + cos) * area.width.saturating_sub(1) as f32 + 0.5) as u16;
-                let position = Position::new(area.x + highlight_index, area.y);
+                    (0.5 * (1.0 + cos) * area.extent().x.saturating_sub(1) as f32 + 0.5) as u16;
+                let position = [area.min().x + highlight_index, area.min().y];
 
                 if let Some(cell) = context.get_scrolled_cell_mut(position) {
                     cell.set_style(highlight);

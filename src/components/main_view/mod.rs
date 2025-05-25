@@ -21,6 +21,7 @@ use crate::args::Args;
 use crate::color::TextColor;
 use crate::component::{Component, ComponentExt, ComponentId, DrawContext, Drawable};
 use crate::env::PROJECT_VERSION;
+use crate::geometry::Rectangle;
 use crate::layout::TaffyNodeData;
 
 use super::layout_placeholder::LayoutPlaceholder;
@@ -236,19 +237,19 @@ impl MainView {
         })
     }
 
-    fn pane_areas(area: Rect, title_offset_x: u16) -> (Rect, Rect) {
+    fn pane_areas(area: Rectangle, title_offset_x: u16) -> (Rectangle, Rectangle) {
         let [mut title, content] = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Length(1), Constraint::Fill(1)])
-            .areas(area);
+            .areas(area.into());
 
         title.x += title_offset_x;
         title.width = title.width.saturating_sub(title_offset_x);
 
-        (title, content)
+        (title.into(), content.into())
     }
 
-    fn draw_header(&self, context: &mut DrawContext, area_header: Rect) -> Result<()> {
+    fn draw_header(&self, context: &mut DrawContext, area_header: Rectangle) -> Result<()> {
         context.draw_widget(
             &Span::raw(format!("RRR TUI v{}", *PROJECT_VERSION)),
             area_header,
@@ -256,13 +257,13 @@ impl MainView {
         Ok(())
     }
 
-    fn draw_pane_tree(&self, context: &mut DrawContext, area: Rect) -> Result<()> {
+    fn draw_pane_tree(&self, context: &mut DrawContext, area: Rectangle) -> Result<()> {
         let (area_title, _area_content) = Self::pane_areas(area, 0);
         context.draw_widget(&Span::raw("[T]ree"), area_title);
         Ok(())
     }
 
-    fn draw_pane_metadata(&self, context: &mut DrawContext, area: Rect) -> Result<()> {
+    fn draw_pane_metadata(&self, context: &mut DrawContext, area: Rectangle) -> Result<()> {
         let (area_title, area_content) = Self::pane_areas(area, 0);
 
         if let Some(opened_record) = self.state.borrow().opened_record.as_ref() {
@@ -283,7 +284,7 @@ impl MainView {
         Ok(())
     }
 
-    fn draw_pane_overview(&self, context: &mut DrawContext, area: Rect) -> Result<()> {
+    fn draw_pane_overview(&self, context: &mut DrawContext, area: Rectangle) -> Result<()> {
         let (area_title, _area_content) = Self::pane_areas(area, 0);
         context.draw_widget(&Span::raw("[O]verview"), area_title);
         Ok(())
@@ -419,7 +420,7 @@ impl Drawable for MainView {
                 Constraint::Length(3),
                 Constraint::Length(1),
             ])
-            .areas(area);
+            .areas(area.into());
         let layout_top = Layout::default()
             .direction(Direction::Horizontal)
             .spacing(1)
@@ -431,28 +432,22 @@ impl Drawable for MainView {
         let [area_tree, area_metadata, area_overview] = layout_top.areas(area_top);
         let [_, area_top_spacer_0, area_top_spacer_1, _] = layout_top.spacers(area_top);
 
-        context.draw_widget(&SPACER_HORIZONTAL, area_top);
-        context.draw_widget(&SPACER_HORIZONTAL, area_content);
-        context.draw_widget(&SPACER_HORIZONTAL, area_bottom);
-        context.draw_widget(&SPACER_HORIZONTAL, area_footer);
+        context.draw_widget(&SPACER_HORIZONTAL, area_top.into());
+        context.draw_widget(&SPACER_HORIZONTAL, area_content.into());
+        context.draw_widget(&SPACER_HORIZONTAL, area_bottom.into());
+        context.draw_widget(&SPACER_HORIZONTAL, area_footer.into());
         context.draw_widget(
             &SPACER_VERTICAL_FORKED,
-            Rect {
-                height: area_top_spacer_0.height + 1,
-                ..area_top_spacer_0
-            },
+            Rectangle::from(area_top_spacer_0).with_height(area_top_spacer_0.height + 1),
         );
         context.draw_widget(
             &SPACER_VERTICAL_FORKED,
-            Rect {
-                height: area_top_spacer_1.height + 1,
-                ..area_top_spacer_1
-            },
+            Rectangle::from(area_top_spacer_1).with_height(area_top_spacer_1.height + 1),
         );
 
-        self.draw_pane_tree(context, area_tree)?;
-        self.draw_pane_metadata(context, area_metadata)?;
-        self.draw_pane_overview(context, area_overview)?;
+        self.draw_pane_tree(context, area_tree.into())?;
+        self.draw_pane_metadata(context, area_metadata.into())?;
+        self.draw_pane_overview(context, area_overview.into())?;
         context.draw_component_with(
             &self.pane_content,
             PaneContentArgs {
@@ -465,7 +460,7 @@ impl Drawable for MainView {
                 title_offset_x: area_metadata.x,
             },
         )?;
-        self.draw_header(context, area_header)?;
+        self.draw_header(context, area_header.into())?;
 
         /* Debug Oklch color space
         for y in area.y..(area.y + area.height) {
