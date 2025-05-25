@@ -21,6 +21,7 @@ mod component;
 mod components;
 mod env;
 mod error;
+mod geometry;
 mod layout;
 mod logging;
 mod rect;
