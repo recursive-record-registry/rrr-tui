@@ -12,7 +12,7 @@ use crate::{
         Component, ComponentExt, ComponentId, DefaultDrawableComponent, Drawable,
         HandleEventSuccess,
     },
-    layout::{TaffyNodeData, ext::ratatui::SizeExt},
+    layout::TaffyNodeData,
     tracing_dbg,
     tui::Event,
 };

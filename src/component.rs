@@ -19,10 +19,11 @@ use tracing::instrument;
 
 use crate::{
     action::{Action, ComponentMessage},
-    layout::{
-        AbsoluteLayout, PositionExt, Rectangle, TaffyNodeData,
+    geometry::{
+        PositionExt, Rectangle,
         ext::nalgebra::{PointExt, PointExtRatatui},
     },
+    layout::{AbsoluteLayout, TaffyNodeData},
     tracing_dbg,
     tui::Event,
 };

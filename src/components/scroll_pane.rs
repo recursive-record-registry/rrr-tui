@@ -15,7 +15,8 @@ use crate::{
         Component, ComponentExt, ComponentId, DefaultDrawableComponent, Drawable,
         HandleEventSuccess,
     },
-    layout::{TaffyNodeData, ext::ratatui::SizeExt},
+    geometry::ext::ratatui::SizeExt,
+    layout::TaffyNodeData,
     tui::Event,
 };
 
