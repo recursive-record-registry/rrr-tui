@@ -20,7 +20,7 @@ use tracing::instrument;
 use crate::{
     action::{Action, ComponentMessage},
     geometry::{
-        PositionExt, Rectangle,
+        IntoNalgebra, Rectangle,
         ext::nalgebra::{PointExt, PointExtRatatui},
     },
     layout::{AbsoluteLayout, TaffyNodeData},

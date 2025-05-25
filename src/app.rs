@@ -6,7 +6,7 @@ use std::{
 
 use color_eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use ratatui::prelude::Rect;
+use ratatui::{prelude::Rect, style::Style};
 use taffy::AvailableSpace;
 use tokio::sync::mpsc;
 use tracing::instrument;
@@ -14,6 +14,7 @@ use tracing::instrument;
 use crate::{
     action::{Action, ComponentMessage, FocusChange, FocusChangeDirection, FocusChangeScope},
     args::Args,
+    color::ColorU8Rgb,
     component::{
         self, ComponentId, ComponentIdPath, DefaultDrawableComponent, DrawContext,
         HandleEventSuccess, find_component_by_id_mut,
@@ -35,6 +36,7 @@ pub struct App {
     action_rx: mpsc::UnboundedReceiver<Action>,
     root_component: Box<dyn DefaultDrawableComponent>,
     focus_path: ComponentIdPath,
+    debug_id: Option<ComponentId>,
     first_render_instant: Option<Instant>,
 }
 
@@ -51,6 +53,7 @@ impl App {
             last_tick_key_events: Vec::new(),
             root_component: Box::new(MainView::new(ComponentId::root(), &action_tx, args).await?),
             focus_path: Default::default(),
+            debug_id: None,
             action_tx,
             action_rx,
             first_render_instant: None,
@@ -215,6 +218,27 @@ impl App {
                 layout::trace_tree_custom(&*self.root_component);
                 None
             }
+            #[cfg(feature = "debug")]
+            KeyEvent {
+                code: code @ KeyCode::F(7 | 8),
+                kind: KeyEventKind::Press,
+                ..
+            } => {
+                if let Some(debug_id) = self.debug_id.as_mut() {
+                    if code == KeyCode::F(7) {
+                        debug_id.0 += 1;
+                    } else {
+                        debug_id.0 = debug_id.0.saturating_sub(1);
+                    }
+                } else {
+                    self.debug_id = Some(ComponentId(0));
+                }
+                tracing::debug!(
+                    debug_id = ?self.debug_id.unwrap(),
+                    "Debug component ID changed."
+                );
+                None
+            }
             _ => None,
         };
         if let Some(action) = action {
@@ -372,7 +396,30 @@ impl App {
             let mut draw_context =
                 DrawContext::new(frame, self.get_focused_component_id(), now, elapsed_time);
 
-            result = draw_context.draw_component(&mut *self.root_component);
+            result = draw_context.draw_component(&*self.root_component);
+
+            #[cfg(feature = "debug")]
+            if let Some(debug_id) = self.debug_id.as_ref() {
+                if let Some((debug_component, _)) =
+                    find_component_by_id_mut(&mut *self.root_component, *debug_id)
+                {
+                    let absolute_layout = debug_component.get_taffy_node_data().absolute_layout();
+
+                    if !absolute_layout.content_rect_unclipped().is_empty() {
+                        frame.buffer_mut().set_style(
+                            absolute_layout.content_rect_unclipped().into(),
+                            Style::new().bg(ColorU8Rgb::new_f32(0.5, 0.0, 0.0).into()),
+                        );
+                    }
+
+                    if !absolute_layout.content_rect().is_empty() {
+                        frame.buffer_mut().set_style(
+                            absolute_layout.content_rect().into(),
+                            Style::new().bg(ColorU8Rgb::new_f32(1.0, 0.0, 0.0).into()),
+                        );
+                    }
+                }
+            }
         })?;
         result
     }
