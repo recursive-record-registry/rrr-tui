@@ -523,6 +523,7 @@ impl<'a, 'b: 'a> DrawContext<'a, 'b> {
                     ..Default::default()
                 };
                 // TODO: Only use buffer if the element doesn't fully fit into the view.
+                // TODO: Copy the cells that will be replaced by the buffer into the buffer.
                 let mut tmp_buffer = Buffer::empty(draw_area);
                 widget.render_ref(draw_area, &mut tmp_buffer);
                 self.frame.buffer_mut().blit(

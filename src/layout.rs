@@ -364,6 +364,15 @@ impl AbsoluteLayout {
     pub fn overflow_size(&self) -> Size {
         self.overflow_size
     }
+
+    pub fn max_content_overflow_rect(&self) -> Rect {
+        Rect {
+            x: self.content_rect.x,
+            y: self.content_rect.y,
+            width: std::cmp::max(self.content_rect.width, self.overflow_size.width),
+            height: std::cmp::max(self.content_rect.height, self.overflow_size.height),
+        }
+    }
 }
 
 #[derive(Default, Debug, Clone)]

@@ -6,7 +6,7 @@ use color_eyre::eyre::Result;
 use ratatui::prelude::*;
 use ratatui::widgets::Paragraph;
 use taffy::prelude::{auto, length, percent, zero};
-use taffy::{Display, FlexDirection};
+use taffy::{BoxSizing, Display, FlexDirection};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::action::{Action, ComponentMessage};
@@ -39,6 +39,7 @@ impl PaneContent {
         Ok(Self {
             id,
             taffy_node_data: TaffyNodeData::new(taffy::Style {
+                box_sizing: BoxSizing::BorderBox,
                 // This padding is for the pane's title.
                 padding: taffy::Rect {
                     top: taffy::prelude::length(1.0),
@@ -111,6 +112,7 @@ impl PaneContent {
                     )),
             )
             .with_style(|style| taffy::Style {
+                box_sizing: BoxSizing::BorderBox,
                 size: taffy::Size {
                     width: percent(1.0),
                     height: percent(1.0),
