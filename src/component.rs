@@ -6,7 +6,6 @@ use std::{
 };
 
 use color_eyre::Result;
-use nalgebra::Translation2;
 use ratatui::{
     Frame,
     buffer::{Buffer, Cell},
@@ -24,7 +23,6 @@ use crate::{
         ext::nalgebra::{PointExt, PointExtRatatui},
     },
     layout::{AbsoluteLayout, TaffyNodeData},
-    tracing_dbg,
     tui::Event,
 };
 

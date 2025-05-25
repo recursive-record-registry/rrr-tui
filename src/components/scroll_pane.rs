@@ -182,6 +182,8 @@ where
     where
         Self: 'a,
     {
+        // TODO: Most of this should be cached, as it only changes during layout changes/scroll
+        // position changes.
         let scrollbar_color = ColorU8Rgb::new_f32(0.0, 0.0, 1.0).into();
         let rail_color = ColorU8Rgb::new_f32(0.0, 0.0, 0.3).into();
 

@@ -1,20 +1,12 @@
-use color_eyre::{eyre::Result, owo_colors::OwoColorize};
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, MouseEvent, MouseEventKind};
-use nalgebra::SVector;
-use ratatui::layout::{Position, Rect};
-use taffy::Overflow;
+use color_eyre::eyre::Result;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     action::Action,
-    color::{ColorU8Rgb, TextColor},
     component::{
-        Component, ComponentExt, ComponentId, DefaultDrawableComponent, Drawable,
-        HandleEventSuccess,
+        Component, ComponentId, DefaultDrawableComponent, Drawable,
     },
     layout::TaffyNodeData,
-    tracing_dbg,
-    tui::Event,
 };
 
 enum ScrollAxis {

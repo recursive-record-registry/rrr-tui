@@ -1,22 +1,14 @@
-use std::{
-    fmt::Debug,
-    ops::{ControlFlow, Mul, Sub, SubAssign},
-};
+use std::fmt::Debug;
 
-use ext::RoundSizeExt;
 use nalgebra::{
-    ArrayStorage, ClosedAddAssign, ClosedSubAssign, Const, Point, SVector, Scalar, SimdPartialOrd,
-    Translation2, Vector, point, vector, zero,
+    ClosedAddAssign, ClosedSubAssign, Point, SVector, Scalar, SimdPartialOrd,
+    Translation2, point, zero,
 };
 use num_traits::Zero;
-use ratatui::layout::{Offset, Position, Rect, Size};
-use simba::scalar::{ClosedSub, SubsetOf};
-use taffy::{
-    CacheTree, LayoutBlockContainer, LayoutFlexboxContainer, LayoutGridContainer,
-    LayoutPartialTree, PrintTree, RoundTree, TraversePartialTree, TraverseTree,
-};
+use ratatui::layout::{Offset, Position, Rect};
+use simba::scalar::SubsetOf;
 
-use crate::component::{self, ComponentId, DefaultDrawableComponent};
+use crate::component::ComponentId;
 
 pub mod ext {
     pub mod ratatui {
