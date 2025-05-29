@@ -1,6 +1,6 @@
 use std::{fmt::Debug, ops::ControlFlow};
 
-use nalgebra::{Point, SVector};
+use nalgebra::{Point, SVector, point, vector};
 use ratatui::layout::{Position, Rect, Size};
 use taffy::{
     CacheTree, LayoutBlockContainer, LayoutFlexboxContainer, LayoutGridContainer,
@@ -16,37 +16,40 @@ use crate::{
 };
 
 pub trait LayoutExt {
-    fn content_rect(self) -> Rect;
-    fn padding_rect(self) -> Rect;
-    fn border_rect(self) -> Rect;
+    fn content_rect(self) -> Rectangle<i16>;
+    fn padding_rect(self) -> Rectangle<i16>;
+    fn border_rect(self) -> Rectangle<i16>;
 }
 
 impl LayoutExt for taffy::Layout {
-    fn content_rect(self) -> Rect {
-        Rect {
-            x: self.content_box_x() as u16,
-            y: self.content_box_y() as u16,
-            width: self.content_box_width() as u16,
-            height: self.content_box_height() as u16,
-        }
+    fn content_rect(self) -> Rectangle<i16> {
+        Rectangle::from_extent(
+            point![self.content_box_x() as i16, self.content_box_y() as i16],
+            vector![
+                self.content_box_width() as i16,
+                self.content_box_height() as i16
+            ],
+        )
     }
 
-    fn padding_rect(self) -> Rect {
-        Rect {
-            x: (self.location.x + self.border.left) as u16,
-            y: (self.location.y + self.border.top) as u16,
-            width: (self.size.width - self.border.left - self.border.right) as u16,
-            height: (self.size.height - self.border.top - self.border.bottom) as u16,
-        }
+    fn padding_rect(self) -> Rectangle<i16> {
+        Rectangle::from_extent(
+            point![
+                (self.location.x + self.border.left) as i16,
+                (self.location.y + self.border.top) as i16
+            ],
+            vector![
+                (self.size.width - self.border.left - self.border.right) as i16,
+                (self.size.height - self.border.top - self.border.bottom) as i16
+            ],
+        )
     }
 
-    fn border_rect(self) -> Rect {
-        Rect {
-            x: self.location.x as u16,
-            y: self.location.y as u16,
-            width: self.size.width as u16,
-            height: self.size.height as u16,
-        }
+    fn border_rect(self) -> Rectangle<i16> {
+        Rectangle::from_extent(
+            point![self.location.x as i16, self.location.y as i16],
+            vector![self.size.width as i16, self.size.height as i16],
+        )
     }
 }
 
@@ -55,33 +58,31 @@ impl LayoutExt for taffy::Layout {
 pub struct AbsoluteLayout {
     /// The rectangle containing the overflowing content.
     pub(self) overflow_size: SVector<u16, 2>,
-    /// The rectangle containing the clipped content.
-    pub(self) content_rect: Rectangle,
+    /// An area which the overflow content is clipped to.
+    pub(self) overflow_rect_clip: Rectangle<i16>,
     /// The rectangle containing the unclipped content.
-    #[cfg(feature = "debug")]
-    pub(self) content_rect_unclipped: Rectangle,
+    pub(self) content_rect: Rectangle<i16>,
     /// The rectangle containing the padding, and the content.
-    pub(self) padding_rect: Rectangle,
+    pub(self) padding_rect: Rectangle<i16>,
     /// The outermost rectangle containing the border, the padding, and the content.
-    pub(self) border_rect: Rectangle,
+    pub(self) border_rect: Rectangle<i16>,
     pub(self) scroll_position: Point<u16, 2>,
 }
 
 impl AbsoluteLayout {
-    pub fn content_rect(&self) -> Rectangle {
+    pub fn overflow_rect_clip(&self) -> Rectangle<i16> {
+        self.overflow_rect_clip
+    }
+
+    pub fn content_rect(&self) -> Rectangle<i16> {
         self.content_rect
     }
 
-    #[cfg(feature = "debug")]
-    pub fn content_rect_unclipped(&self) -> Rectangle {
-        self.content_rect_unclipped
-    }
-
-    pub fn padding_rect(&self) -> Rectangle {
+    pub fn padding_rect(&self) -> Rectangle<i16> {
         self.padding_rect
     }
 
-    pub fn border_rect(&self) -> Rectangle {
+    pub fn border_rect(&self) -> Rectangle<i16> {
         self.border_rect
     }
 
@@ -93,14 +94,14 @@ impl AbsoluteLayout {
         self.overflow_size
     }
 
-    pub fn max_content_overflow_rect(&self) -> Rectangle {
-        Rectangle::from_minmax(
-            self.content_rect.min(),
-            self.content_rect
-                .max()
-                .sup(&(self.content_rect.min() + self.overflow_size)),
-        )
-    }
+    // pub fn max_content_overflow_rect(&self) -> Rectangle<i16> {
+    //     Rectangle::from_minmax(
+    //         self.content_rect.min(),
+    //         self.content_rect
+    //             .max()
+    //             .sup(&(self.content_rect.min() + self.overflow_size.cast::<i16>())),
+    //     )
+    // }
 }
 
 #[derive(Default, Debug, Clone)]
@@ -425,34 +426,26 @@ pub fn compute_absolute_layout(
     frame_area: Rect,
 ) {
     struct PreorderData {
-        overflow_clip_area: Rectangle<u16>,
+        overflow_clip_area: Rectangle<i16>,
         absolute_position_offset: SVector<i16, 2>,
+        // TODO: Currently unused, consider removing.
         predecessor_cumulative_scroll: SVector<u16, 2>,
     }
 
     impl PreorderData {
         pub fn get_scrolled_area(
             &self,
-            area_relative: impl Into<Rectangle<u16>>,
-        ) -> (Rectangle<i16>, Rectangle<i16>, Rectangle<i16>) {
-            let offset_area = area_relative
-                .into()
-                .cast::<i16>()
-                .translated(self.absolute_position_offset);
-            let area_in_buffer = self
-                .overflow_clip_area
-                .cast::<i16>()
-                .intersect(&offset_area);
-            let area_in_widget = area_in_buffer.translated(-offset_area.min().coords);
-
-            (area_in_buffer, offset_area, area_in_widget)
+            area_relative: Rectangle<i16>,
+            scroll: SVector<u16, 2>,
+        ) -> Rectangle<i16> {
+            area_relative.translated(self.absolute_position_offset)
         }
     }
 
     let _ = component::depth_first_search_with_data_mut::<(), PreorderData, ()>(
         root_component,
         &PreorderData {
-            overflow_clip_area: frame_area.into(),
+            overflow_clip_area: Rectangle::from(frame_area).cast::<i16>(),
             absolute_position_offset: frame_area
                 .as_position()
                 .into_nalgebra()
@@ -461,7 +454,7 @@ pub fn compute_absolute_layout(
             predecessor_cumulative_scroll: Default::default(),
         },
         &mut |component, preorder_data| {
-            let scroll_position = component.scroll_position().into_nalgebra();
+            let scroll_position = component.scroll_position().into_nalgebra().coords;
             let taffy_node_data = component.get_taffy_node_data_mut();
             let layout = &taffy_node_data.rounded_layout;
             let absolute_layout = &mut taffy_node_data.absolute_layout;
@@ -470,32 +463,25 @@ pub fn compute_absolute_layout(
                 .into_nalgebra()
                 .try_cast::<u16>()
                 .unwrap_or_default();
-            absolute_layout.content_rect = preorder_data
-                .get_scrolled_area(layout.content_rect())
-                .0
-                .clip();
-            #[cfg(feature = "debug")]
-            {
-                absolute_layout.content_rect_unclipped = preorder_data
-                    .get_scrolled_area(layout.content_rect())
-                    .1
-                    .clip();
-            }
-            absolute_layout.padding_rect = preorder_data
-                .get_scrolled_area(layout.padding_rect())
-                .0
-                .clip();
-            absolute_layout.border_rect = preorder_data
-                .get_scrolled_area(layout.border_rect())
-                .0
-                .clip();
-            absolute_layout.scroll_position = scroll_position;
+
+            absolute_layout.content_rect =
+                preorder_data.get_scrolled_area(layout.content_rect(), scroll_position);
+            absolute_layout.padding_rect =
+                preorder_data.get_scrolled_area(layout.padding_rect(), scroll_position);
+            absolute_layout.border_rect =
+                preorder_data.get_scrolled_area(layout.border_rect(), scroll_position);
+            absolute_layout.scroll_position = scroll_position.into();
+            //absolute_layout.overflow_rect_clip = preorder_data.overflow_clip_area;
+            absolute_layout.overflow_rect_clip = preorder_data
+                .overflow_clip_area
+                .cast::<i16>()
+                .intersect(&absolute_layout.padding_rect);
             ControlFlow::Continue(PreorderData {
-                overflow_clip_area: absolute_layout.padding_rect,
+                overflow_clip_area: absolute_layout.overflow_rect_clip,
                 predecessor_cumulative_scroll: preorder_data.predecessor_cumulative_scroll
-                    + scroll_position.coords,
+                    + scroll_position,
                 absolute_position_offset: absolute_layout.padding_rect.min().cast::<i16>().coords
-                    - preorder_data.predecessor_cumulative_scroll.cast::<i16>(),
+                    - scroll_position.cast::<i16>(),
             })
         },
         &mut |_, _| ControlFlow::Continue(()),

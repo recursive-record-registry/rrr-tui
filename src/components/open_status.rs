@@ -3,6 +3,7 @@ use std::time::{Duration, Instant};
 
 use color_eyre::eyre::Result;
 use easing_function::{Easing, EasingFunction};
+use nalgebra::Point;
 use ratatui::layout::{Position, Rect, Size};
 use ratatui::text::Span;
 use tokio::sync::mpsc::UnboundedSender;
@@ -30,17 +31,17 @@ pub enum Animation {
 }
 
 impl Animation {
-    fn apply(&self, context: &mut DrawContext, area: Rectangle) {
+    fn apply(&self, context: &mut DrawContext, area: Rectangle<i16>) {
         match self {
             Animation::ProgressIndeterminate { period, highlight } => {
                 let cos = (context.elapsed_time().as_secs_f32() * std::f32::consts::TAU
                     / period.as_secs_f32())
                 .cos();
                 let highlight_index =
-                    (0.5 * (1.0 + cos) * area.extent().x.saturating_sub(1) as f32 + 0.5) as u16;
+                    (0.5 * (1.0 + cos) * area.extent().x.saturating_sub(1) as f32 + 0.5) as i16;
                 let position = [area.min().x + highlight_index, area.min().y];
 
-                if let Some(cell) = context.get_scrolled_cell_mut(position) {
+                if let Some(cell) = context.get_cell_mut(position) {
                     cell.set_style(highlight);
                 }
             }

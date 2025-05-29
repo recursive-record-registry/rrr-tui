@@ -4,44 +4,45 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-        {
-            "type": "lldb-dap",
-            "request": "launch",
-            "name": "Debug LLDB-DAP",
-            "preRunCommands": [
-                "cargo build --bin=rrr-tui-3 --package=rrr-tui-3"
-            ],
-            "program": "target/rrr-tui-3.exe",
-            "args": [],
-            "env": {
-                "LOG_FILE": "rrr_tui.LOCAL.log",
-                "RUST_LOG": "rrr_tui_3=trace",
-                "RUST_BACKTRACE": "1"
-            },
-        },
+        // {
+        //     "type": "lldb-dap",
+        //     "request": "launch",
+        //     "name": "Debug LLDB-DAP",
+        //     "preRunCommands": [
+        //         "cargo build --bin=rrr-tui-3 --package=rrr-tui-3"
+        //     ],
+        //     "program": "target/rrr-tui-3.exe",
+        //     "args": [],
+        //     "env": {
+        //         "LOG_FILE": "rrr_tui.LOCAL.log",
+        //         "RUST_LOG": "rrr_tui_3=trace",
+        //         "RUST_BACKTRACE": "1"
+        //     },
+        // },
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'rrr-tui-3'",
+            "name": "Debug executable 'rrr-tui'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=rrr-tui-3",
-                    "--package=rrr-tui-3"
+                    "--bin=rrr-tui",
+                    "--package=rrr-tui",
+                    "--features=debug"
                 ],
                 "filter": {
-                    "name": "rrr-tui-3",
+                    "name": "rrr-tui",
                     "kind": "bin"
                 }
             },
             "args": [],
             "env": {
                 "LOG_FILE": "rrr_tui.LOCAL.log",
-                "RUST_LOG": "rrr_tui_3=trace",
+                "RUST_LOG": "rrr_tui=trace",
                 "RUST_BACKTRACE": "1"
             },
             //"cwd": "${workspaceFolder}"
-            "cwd": "${workspaceFolder}/../rrr-make/target/tmp/test-registry-3"
+            "cwd": "${workspaceFolder}/../rrr-make/target/tmp/test-registry/target/staging"
         },
         {
             "type": "lldb",

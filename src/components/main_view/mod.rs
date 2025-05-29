@@ -5,6 +5,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use color_eyre::eyre::Result;
+use nalgebra::vector;
 use pane_content::{PaneContent, PaneContentArgs};
 use pane_open::{PaneOpen, PaneOpenArgs};
 use ratatui::prelude::*;
@@ -237,19 +238,16 @@ impl MainView {
         })
     }
 
-    fn pane_areas(area: Rectangle, title_offset_x: u16) -> (Rectangle, Rectangle) {
-        let [mut title, content] = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Length(1), Constraint::Fill(1)])
-            .areas(area.into());
+    fn pane_areas(area: Rectangle<i16>, title_offset_x: u16) -> (Rectangle<i16>, Rectangle<i16>) {
+        let title =
+            Rectangle::from_minmax(area.min() + vector![title_offset_x as i16, 0], area.max())
+                .with_height(1);
+        let content = Rectangle::from_minmax(area.min() + vector![0, 1], area.max());
 
-        title.x += title_offset_x;
-        title.width = title.width.saturating_sub(title_offset_x);
-
-        (title.into(), content.into())
+        (title, content)
     }
 
-    fn draw_header(&self, context: &mut DrawContext, area_header: Rectangle) -> Result<()> {
+    fn draw_header(&self, context: &mut DrawContext, area_header: Rectangle<i16>) -> Result<()> {
         context.draw_widget(
             &Span::raw(format!("RRR TUI v{}", *PROJECT_VERSION)),
             area_header,
@@ -257,13 +255,13 @@ impl MainView {
         Ok(())
     }
 
-    fn draw_pane_tree(&self, context: &mut DrawContext, area: Rectangle) -> Result<()> {
+    fn draw_pane_tree(&self, context: &mut DrawContext, area: Rectangle<i16>) -> Result<()> {
         let (area_title, _area_content) = Self::pane_areas(area, 0);
         context.draw_widget(&Span::raw("[T]ree"), area_title);
         Ok(())
     }
 
-    fn draw_pane_metadata(&self, context: &mut DrawContext, area: Rectangle) -> Result<()> {
+    fn draw_pane_metadata(&self, context: &mut DrawContext, area: Rectangle<i16>) -> Result<()> {
         let (area_title, area_content) = Self::pane_areas(area, 0);
 
         if let Some(opened_record) = self.state.borrow().opened_record.as_ref() {
@@ -284,7 +282,7 @@ impl MainView {
         Ok(())
     }
 
-    fn draw_pane_overview(&self, context: &mut DrawContext, area: Rectangle) -> Result<()> {
+    fn draw_pane_overview(&self, context: &mut DrawContext, area: Rectangle<i16>) -> Result<()> {
         let (area_title, _area_content) = Self::pane_areas(area, 0);
         context.draw_widget(&Span::raw("[O]verview"), area_title);
         Ok(())
@@ -370,7 +368,10 @@ impl Drawable for MainView {
             merged: symbols::line::HORIZONTAL,
         };
 
-        let area = self.taffy_node_data.absolute_layout().content_rect();
+        let area = self
+            .taffy_node_data
+            .absolute_layout()
+            .content_rect();
 
         // Draw the background of the entire main window.
         context.set_style(area, TextColor::default());
@@ -420,7 +421,7 @@ impl Drawable for MainView {
                 Constraint::Length(3),
                 Constraint::Length(1),
             ])
-            .areas(area.into());
+            .areas(area.clip().into());
         let layout_top = Layout::default()
             .direction(Direction::Horizontal)
             .spacing(1)
@@ -432,22 +433,26 @@ impl Drawable for MainView {
         let [area_tree, area_metadata, area_overview] = layout_top.areas(area_top);
         let [_, area_top_spacer_0, area_top_spacer_1, _] = layout_top.spacers(area_top);
 
-        context.draw_widget(&SPACER_HORIZONTAL, area_top.into());
-        context.draw_widget(&SPACER_HORIZONTAL, area_content.into());
-        context.draw_widget(&SPACER_HORIZONTAL, area_bottom.into());
-        context.draw_widget(&SPACER_HORIZONTAL, area_footer.into());
+        context.draw_widget(&SPACER_HORIZONTAL, Rectangle::from(area_top).cast());
+        context.draw_widget(&SPACER_HORIZONTAL, Rectangle::from(area_content).cast());
+        context.draw_widget(&SPACER_HORIZONTAL, Rectangle::from(area_bottom).cast());
+        context.draw_widget(&SPACER_HORIZONTAL, Rectangle::from(area_footer).cast());
         context.draw_widget(
             &SPACER_VERTICAL_FORKED,
-            Rectangle::from(area_top_spacer_0).with_height(area_top_spacer_0.height + 1),
+            Rectangle::from(area_top_spacer_0)
+                .with_height(area_top_spacer_0.height + 1)
+                .cast::<i16>(),
         );
         context.draw_widget(
             &SPACER_VERTICAL_FORKED,
-            Rectangle::from(area_top_spacer_1).with_height(area_top_spacer_1.height + 1),
+            Rectangle::from(area_top_spacer_1)
+                .with_height(area_top_spacer_1.height + 1)
+                .cast::<i16>(),
         );
 
-        self.draw_pane_tree(context, area_tree.into())?;
-        self.draw_pane_metadata(context, area_metadata.into())?;
-        self.draw_pane_overview(context, area_overview.into())?;
+        self.draw_pane_tree(context, Rectangle::from(area_tree).cast())?;
+        self.draw_pane_metadata(context, Rectangle::from(area_metadata).cast())?;
+        self.draw_pane_overview(context, Rectangle::from(area_overview).cast())?;
         context.draw_component_with(
             &self.pane_content,
             PaneContentArgs {
@@ -460,7 +465,7 @@ impl Drawable for MainView {
                 title_offset_x: area_metadata.x,
             },
         )?;
-        self.draw_header(context, area_header.into())?;
+        self.draw_header(context, Rectangle::from(area_header).cast())?;
 
         /* Debug Oklch color space
         for y in area.y..(area.y + area.height) {

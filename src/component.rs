@@ -6,7 +6,7 @@ use std::{
 };
 
 use color_eyre::Result;
-use nalgebra::{Point, Translation2};
+use nalgebra::{Point, Translation2, zero};
 use ratatui::{
     Frame,
     buffer::{Buffer, Cell},
@@ -24,7 +24,7 @@ use crate::{
         ext::nalgebra::{PointExt, PointExtRatatui},
     },
     layout::{AbsoluteLayout, TaffyNodeData},
-    tracing_dbg,
+    trace_dbg, tracing_dbg,
     tui::Event,
 };
 
@@ -252,6 +252,7 @@ pub trait Component: Debug {
         Default::default()
     }
 
+    // TODO: Change to SVector
     fn scroll_position(&self) -> Position {
         Default::default()
     }
@@ -297,7 +298,13 @@ impl<T: Component> ComponentExt for T {
 }
 
 pub trait BufferExt {
-    fn blit(&mut self, other: &Self, position_src: Position, position_dst: Position, size: Size);
+    fn blit(
+        &mut self,
+        other: &Self,
+        position_src: impl Into<Position>,
+        position_dst: impl Into<Position>,
+        size: impl Into<Size>,
+    );
     fn index_of_opt_alt(&self, position: Position) -> Option<usize>;
 }
 
@@ -314,14 +321,29 @@ impl BufferExt for Buffer {
         Some(y * width + x)
     }
 
-    #[instrument(level = "trace", skip(self))]
+    #[instrument(
+        level = "trace",
+        skip(self, position_src, position_dst, size),
+        fields(position_src, position_dst, size)
+    )]
     fn blit(
         &mut self,
         other: &Self,
-        position_src: Position,
-        position_dst: Position,
-        mut size: Size,
+        position_src: impl Into<Position>,
+        position_dst: impl Into<Position>,
+        size: impl Into<Size>,
     ) {
+        let position_src = position_src.into();
+        let position_dst = position_dst.into();
+        let mut size = size.into();
+
+        {
+            let span = tracing::Span::current();
+            span.record("position_src", position_src.to_string());
+            span.record("position_dst", position_dst.to_string());
+            span.record("size", size.to_string());
+        }
+
         size.width = std::cmp::min(
             size.width,
             std::cmp::min(
@@ -369,13 +391,8 @@ pub struct DrawContext<'a, 'b: 'a> {
     now: Instant,
     /// Time elapsed since the app was launched until `now`.
     elapsed_time: Duration,
-    /// The writeable region of the frame.
+    /// The clipping area of the currently drawn component.
     view: Rectangle<u16>,
-    /// Offset relative to the top left corner of the `view`, to render the content from.
-    /// Used for scrolling behavior.
-    scroll_position_relative: Position,
-    /// The accumulation of all relative scroll positions.
-    scroll_position_absolute: Position,
 }
 
 impl<'a, 'b: 'a> DrawContext<'a, 'b> {
@@ -391,30 +408,6 @@ impl<'a, 'b: 'a> DrawContext<'a, 'b> {
             focused_id,
             now,
             elapsed_time,
-            scroll_position_relative: Default::default(),
-            scroll_position_absolute: Default::default(),
-        }
-    }
-
-    pub fn with_scroll_position(
-        &'_ mut self,
-        relative_scroll_position: Position,
-    ) -> DrawContext<'_, 'b> {
-        // let (area, _) = self.get_scrolled_area(self.view.border_rect());
-        // let area = area.clip();
-        DrawContext {
-            frame: self.frame,
-            elapsed_time: self.elapsed_time,
-            focused_id: self.focused_id,
-            now: self.now,
-            view: self.view,
-            scroll_position_relative: relative_scroll_position,
-            scroll_position_absolute: Position {
-                x: self.scroll_position_absolute.x + relative_scroll_position.x
-                    - self.scroll_position_relative.x,
-                y: self.scroll_position_absolute.y + relative_scroll_position.y
-                    - self.scroll_position_relative.x,
-            },
         }
     }
 
@@ -434,53 +427,12 @@ impl<'a, 'b: 'a> DrawContext<'a, 'b> {
         self.elapsed_time
     }
 
-    pub fn view(&self) -> Rectangle {
-        self.view
-    }
-
-    pub fn get_scrolled_area(
-        &self,
-        area_relative: impl Into<Rectangle<u16>>,
-    ) -> (Rectangle<i16>, Rectangle<i16>) {
-        let offset_area = area_relative.into().cast::<i16>().translated(
-            -self
-                .scroll_position_absolute
-                .into_nalgebra()
-                .coords
-                .cast::<i16>(),
-        );
-        let area_in_buffer = self.view.cast::<i16>().intersect(&offset_area);
-        let area_in_widget = area_in_buffer.translated(-offset_area.min().coords);
-
-        (area_in_buffer, area_in_widget)
-    }
-
-    pub fn get_scrolled_area_relative(
-        &self,
-        area_relative: Rect,
-    ) -> (Rectangle<i16>, Rectangle<i16>) {
-        let offset_area = Rectangle::from(area_relative).cast::<i16>().translated(
-            -self
-                .scroll_position_relative
-                .into_nalgebra()
-                .coords
-                .cast::<i16>(),
-        );
-        let area_in_buffer = Rectangle::from(self.view)
-            .cast::<i16>()
-            .intersect(&offset_area);
-        let area_in_widget = area_in_buffer.translated(-offset_area.min().coords);
-
-        (area_in_buffer, area_in_widget)
-    }
-
-    pub fn get_scrolled_cell_mut(
-        &mut self,
-        position: impl Into<Point<u16, 2>>,
-    ) -> Option<&mut Cell> {
-        let mut position = position.into();
-        position.x = position.x.checked_sub(self.scroll_position_absolute.x)?;
-        position.y = position.y.checked_sub(self.scroll_position_absolute.y)?;
+    pub fn get_cell_mut(&mut self, position: impl Into<Point<i16, 2>>) -> Option<&mut Cell> {
+        let position = position
+            .into()
+            .sup(&Point::origin())
+            .try_cast::<u16>()
+            .unwrap();
         if self.view.contains(position) {
             self.frame.buffer_mut().cell_mut(position.into_ratatui())
         } else {
@@ -488,71 +440,100 @@ impl<'a, 'b: 'a> DrawContext<'a, 'b> {
         }
     }
 
-    // pub fn for_each_cell_in_mut(&mut self, area_relative: Rect, mut f: impl FnMut(&mut Cell)) {
-    //     let intersection = self.get_scrolled_area(area_relative);
+    pub fn for_each_cell_in_mut(&mut self, area: Rectangle, mut f: impl FnMut(&mut Cell)) {
+        let clipped_area = self.view.intersect(&area);
 
-    //     for y in (intersection.y..).take(intersection.height as usize) {
-    //         for x in (intersection.x..).take(intersection.width as usize) {
-    //             if let Some(cell) = self.frame.buffer_mut().cell_mut(Position::new(x, y)) {
-    //                 (f)(cell)
-    //             }
-    //         }
-    //     }
-    // }
-
-    pub fn set_style(&mut self, area_relative: impl Into<Rectangle>, style: impl Into<Style>) {
-        let (area_absolute, _) = self.get_scrolled_area(area_relative);
-        if !area_absolute.is_empty() {
-            self.frame
-                .buffer_mut()
-                .set_style(area_absolute.clip().into(), style);
+        for y in clipped_area.min().y..clipped_area.max().y {
+            for x in clipped_area.min().x..clipped_area.max().x {
+                if let Some(cell) = self.frame.buffer_mut().cell_mut(Position::new(x, y)) {
+                    (f)(cell)
+                }
+            }
         }
     }
 
-    pub fn draw_widget<W: WidgetRef + Debug>(&mut self, widget: &W, area_relative: Rectangle) {
-        // let d = false;
+    pub fn set_style(&mut self, area: impl Into<Rectangle<i16>>, style: impl Into<Style>) {
+        let clipped_area = area.into().clip().intersect(&self.view);
+        if !clipped_area.is_empty() {
+            self.frame
+                .buffer_mut()
+                .set_style(clipped_area.into(), style);
+        }
+    }
 
-        // if d {
-        //     tracing_dbg!(widget);
-        //     tracing_dbg!(area_relative);
-        //     tracing_dbg!(self.scroll_position);
+    pub fn draw_widget<W: WidgetRef + Debug>(
+        &mut self,
+        widget: &W,
+        area: impl Into<Rectangle<i16>>,
+    ) {
+        self.draw_widget_debug(widget, area, false);
+    }
+
+    pub fn draw_widget_debug<W: WidgetRef + Debug>(
+        &mut self,
+        widget: &W,
+        area: impl Into<Rectangle<i16>>,
+        debug: bool,
+    ) {
+        let area = area.into().clip();
+        let clipped_area = area.intersect(&self.view);
+
+        // if debug {
+        //     trace_dbg!(area);
+        //     trace_dbg!(clipped_area);
         // }
 
-        if self.scroll_position_absolute != Position::ORIGIN {
-            let (intersection, intersection_in_widget) = self.get_scrolled_area(area_relative);
-
-            if !intersection.is_empty() {
-                let draw_area = Rect {
-                    width: area_relative.extent().x,
-                    height: area_relative.extent().y,
-                    ..Default::default()
-                };
-                // TODO: Only use buffer if the element doesn't fully fit into the view.
-                // TODO: Copy the cells that will be replaced by the buffer into the buffer.
-                let mut tmp_buffer = Buffer::empty(draw_area);
-                widget.render_ref(draw_area, &mut tmp_buffer);
-                self.frame.buffer_mut().blit(
-                    &tmp_buffer,
-                    intersection_in_widget
-                        .min()
-                        .try_cast::<u16>()
-                        .unwrap()
-                        .into_ratatui(),
-                    intersection.min().try_cast::<u16>().unwrap().into_ratatui(),
-                    intersection
-                        .extent()
-                        .try_cast::<u16>()
-                        .unwrap()
-                        .into_ratatui(),
-                );
-                // self.frame.render_stateful_widget_ref(widget, area, state);
-            }
-        } else {
-            let area = area_relative.intersect(&self.view);
-            if !area.is_empty() {
-                widget.render_ref(area.into(), self.frame.buffer_mut());
-            }
+        if clipped_area.is_empty() {
+            // The entire widget is clipped. Nothing to render.
+            return;
         }
+
+        if area.min() == clipped_area.min() {
+            // The top left corner of the widget is not clipped,
+            // therefore the widget can be rendered the simple way.
+            widget.render_ref(clipped_area.into(), self.frame.buffer_mut());
+            return;
+        }
+
+        // At this point, the top left corner of the widget is clipped.
+        // The widget needs to be rendered into an intermediate buffer, to not overwrite existing
+        // data of the buffer in the clipped region.
+
+        let unused_margin = clipped_area.min() - area.min();
+        let draw_area =
+            Rectangle::from_extent(Point::origin(), unused_margin + clipped_area.extent());
+        if debug {
+            tracing_dbg!(unused_margin);
+            tracing_dbg!(draw_area);
+        }
+        let mut tmp_buffer = Buffer::empty(draw_area.into());
+        tmp_buffer.blit(
+            self.frame.buffer_mut(),
+            clipped_area.min().try_cast::<u16>().unwrap().into_ratatui(),
+            Point {
+                coords: unused_margin,
+            }
+            .into_ratatui(),
+            clipped_area
+                .extent()
+                .try_cast::<u16>()
+                .unwrap()
+                .into_ratatui(),
+        );
+        widget.render_ref(draw_area.into(), &mut tmp_buffer);
+        self.frame.buffer_mut().blit(
+            &tmp_buffer,
+            Point {
+                coords: unused_margin,
+            }
+            .into_ratatui(),
+            clipped_area.min().try_cast::<u16>().unwrap().into_ratatui(),
+            clipped_area
+                .extent()
+                .try_cast::<u16>()
+                .unwrap()
+                .into_ratatui(),
+        );
     }
 
     pub fn draw_stateful_widget<W: StatefulWidgetRef>(
@@ -561,14 +542,7 @@ impl<'a, 'b: 'a> DrawContext<'a, 'b> {
         area_relative: Rectangle,
         state: &mut W::State,
     ) {
-        if self.scroll_position_absolute != Position::ORIGIN {
-            todo!();
-        } else {
-            let area = area_relative.intersect(&self.view);
-            if !area.is_empty() {
-                widget.render_ref(area.into(), self.frame.buffer_mut(), state);
-            }
-        }
+        todo!();
     }
 
     fn draw_component_impl<C: Component + ?Sized>(
@@ -576,14 +550,11 @@ impl<'a, 'b: 'a> DrawContext<'a, 'b> {
         component: &C,
         f: impl FnOnce(DrawContext<'_, '_>) -> Result<()>,
     ) -> Result<()> {
-        let absolute_layout = component.get_taffy_node_data().absolute_layout();
-        let (area, _) = self.get_scrolled_area(absolute_layout.border_rect());
-        let area = area.clip();
-        // if component.get_debug_label().contains("ScrollPane") {
-        //     tracing_dbg!(area);
-        // }
-        // let area = absolute_layout.border_rect().intersection(self.view);
-        if area.is_empty() {
+        let content_rect = component
+            .get_taffy_node_data()
+            .absolute_layout()
+            .overflow_rect_clip();
+        if content_rect.is_empty() {
             Ok(())
         } else {
             (f)(DrawContext {
@@ -591,9 +562,7 @@ impl<'a, 'b: 'a> DrawContext<'a, 'b> {
                 elapsed_time: self.elapsed_time,
                 focused_id: self.focused_id,
                 now: self.now,
-                view: area.into(),
-                scroll_position_relative: Default::default(),
-                scroll_position_absolute: self.scroll_position_absolute,
+                view: content_rect.clip(),
             })
         }
     }
