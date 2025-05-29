@@ -1,4 +1,5 @@
-use nalgebra::vector;
+use nalgebra::{ClosedAddAssign, ClosedDivAssign, ClosedSubAssign, Scalar, vector};
+use num_traits::{NumCast, SaturatingSub, Zero};
 use ratatui::{
     layout::{Rect, Size},
     widgets::Padding,
@@ -68,13 +69,32 @@ impl RectExt for Rect {
     }
 }
 
-impl RectExt for Rectangle {
+impl<T> RectExt for Rectangle<T>
+where
+    T: Scalar
+        + Zero
+        + NumCast
+        + ClosedAddAssign
+        + Copy
+        + ClosedSubAssign
+        + SaturatingSub
+        + ClosedDivAssign
+        + Ord,
+{
     fn without_padding(self, padding: Padding) -> Self {
         Self::from_extent(
-            self.min() + vector![padding.left, padding.right],
+            self.min()
+                + vector![
+                    T::from(padding.left).unwrap(),
+                    T::from(padding.right).unwrap()
+                ],
             [
-                self.extent().x.saturating_sub(padding.left + padding.right),
-                self.extent().y.saturating_sub(padding.top + padding.bottom),
+                self.extent()
+                    .x
+                    .saturating_sub(&T::from(padding.left + padding.right).unwrap()),
+                self.extent()
+                    .y
+                    .saturating_sub(&T::from(padding.top + padding.bottom).unwrap()),
             ],
         )
     }
@@ -85,25 +105,43 @@ impl RectExt for Rectangle {
                 match alignment.x {
                     LineAlignment::Start => self.min().x,
                     LineAlignment::Center => {
-                        self.min().x + self.extent().x.saturating_sub(rect_size.width) / 2
+                        self.min().x
+                            + self
+                                .extent()
+                                .x
+                                .saturating_sub(&T::from(rect_size.width).unwrap())
+                                / T::from(2).unwrap()
                     }
                     LineAlignment::End => {
-                        self.min().x + self.extent().x.saturating_sub(rect_size.width)
+                        self.min().x
+                            + self
+                                .extent()
+                                .x
+                                .saturating_sub(&T::from(rect_size.width).unwrap())
                     }
                 },
                 match alignment.y {
                     LineAlignment::Start => self.min().y,
                     LineAlignment::Center => {
-                        self.min().y + self.extent().y.saturating_sub(rect_size.height) / 2
+                        self.min().y
+                            + self
+                                .extent()
+                                .y
+                                .saturating_sub(&T::from(rect_size.height).unwrap())
+                                / T::from(2).unwrap()
                     }
                     LineAlignment::End => {
-                        self.min().y + self.extent().y.saturating_sub(rect_size.height)
+                        self.min().y
+                            + self
+                                .extent()
+                                .y
+                                .saturating_sub(&T::from(rect_size.height).unwrap())
                     }
                 },
             ],
             [
-                std::cmp::min(self.extent().x, rect_size.width),
-                std::cmp::min(self.extent().y, rect_size.height),
+                std::cmp::min(self.extent().x, T::from(rect_size.width).unwrap()),
+                std::cmp::min(self.extent().y, T::from(rect_size.height).unwrap()),
             ],
         )
     }

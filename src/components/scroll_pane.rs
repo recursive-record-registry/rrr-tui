@@ -15,7 +15,7 @@ use crate::{
         Component, ComponentExt, ComponentId, DefaultDrawableComponent, Drawable,
         HandleEventSuccess,
     },
-    geometry::{Rectangle, ext::ratatui::SizeExt},
+    geometry::{IntoNalgebra, Rectangle},
     layout::TaffyNodeData,
     tui::Event,
 };
@@ -60,13 +60,32 @@ where
         }
     }
 
-    fn scroll_size(&self) -> SVector<u16, 2> {
+    /// The overflow size expanded by the view scrolled out of the overflow bounds.
+    /// This typically happens when the scroll pane is enlarged after scrolling to the end.
+    fn expanded_overflow_size(&self) -> SVector<u16, 2> {
         let absolute_layout = self.absolute_layout();
         let overflow_size = absolute_layout.overflow_size();
         let content_size = absolute_layout.content_rect().extent();
 
-        // TODO: How to make this a saturating sub?
-        overflow_size - content_size
+        overflow_size.sup(
+            &(content_size.try_cast::<u16>().unwrap()
+                + self.scroll_position.into_nalgebra().coords),
+        )
+    }
+
+    fn scroll_size(&self) -> SVector<u16, 2> {
+        let absolute_layout = self.absolute_layout();
+        let content_size = absolute_layout.content_rect().extent();
+        let expanded_overflow_size = self.expanded_overflow_size();
+
+        vector![
+            expanded_overflow_size
+                .x
+                .saturating_sub(content_size.x as u16),
+            expanded_overflow_size
+                .y
+                .saturating_sub(content_size.y as u16),
+        ]
     }
 
     fn scroll(
@@ -197,28 +216,28 @@ where
             [1, content_rect.extent().y],
         );
 
-        context
-            .with_scroll_position(self.scroll_position)
-            .draw_component(&self.child)?;
+        context.draw_component(&self.child)?;
 
         let overflow_size = absolute_layout.overflow_size();
+        let expanded_overflow_size = self.expanded_overflow_size();
+        let scroll_size = self.scroll_size();
 
-        if overflow_size.x > content_rect.extent().x {
+        if self.scroll_position().y > 0 || overflow_size.y as i16 > content_rect.extent().y {
             let rail_len_eights = 8 * content_rect.extent().y as u32;
             // The bar must span at least one cell (8 eights of a cell),
             // otherwise it could not be rendered with the unicode block
             // symbols.
             let bar_len_eights = std::cmp::max(
                 8,
-                (rail_len_eights * content_rect.extent().y as u32).div_ceil(overflow_size.y as u32),
+                (rail_len_eights * content_rect.extent().y as u32)
+                    .div_ceil(expanded_overflow_size.y as u32),
             );
-            let bar_offset_eights = ((rail_len_eights - bar_len_eights)
+            let bar_start_eights = ((rail_len_eights - bar_len_eights)
                 * self.scroll_position.y as u32)
-                .div_ceil(self.scroll_size().y as u32);
-            let bar_end_eights = bar_offset_eights + bar_len_eights;
-
-            let bar_offset_start_ceil = bar_offset_eights.div_ceil(8);
-            let bar_offset_end_floor = bar_end_eights / 8;
+                .div_ceil(scroll_size.y as u32);
+            let bar_end_eights = bar_start_eights + bar_len_eights;
+            let bar_start_ceil = bar_start_eights.div_ceil(8);
+            let bar_end_floor = bar_end_eights / 8;
 
             // Draw rail.
             context.set_style(
@@ -230,22 +249,21 @@ where
             );
 
             // Draw top cell of the bar.
-            if bar_offset_eights % 8 != 0 {
-                let bar_offset_start_floor = bar_offset_eights / 8;
+            if bar_start_eights % 8 != 0 {
+                let bar_offset_start_floor = bar_start_eights / 8;
                 let position =
-                    scrollbar_area_vertical.min() + vector![0, bar_offset_start_floor as u16];
-                if let Some(cell) = context.get_scrolled_cell_mut(position) {
-                    let height = bar_offset_eights - bar_offset_start_floor * 8;
+                    scrollbar_area_vertical.min() + vector![0, bar_offset_start_floor as i16];
+                if let Some(cell) = context.get_cell_mut(position) {
+                    let height = bar_start_eights - bar_offset_start_floor * 8;
                     draw_block_symbol(cell, height, scrollbar_color, false);
                 }
             }
 
             // Draw bottom cell of the bar.
             if bar_end_eights % 8 != 0 {
-                let position =
-                    scrollbar_area_vertical.min() + vector![0, bar_offset_end_floor as u16];
-                if let Some(cell) = context.get_scrolled_cell_mut(position) {
-                    let height = bar_end_eights - bar_offset_end_floor * 8;
+                let position = scrollbar_area_vertical.min() + vector![0, bar_end_floor as i16];
+                if let Some(cell) = context.get_cell_mut(position) {
+                    let height = bar_end_eights - bar_end_floor * 8;
                     draw_block_symbol(cell, height, scrollbar_color, true);
                 }
             }
@@ -253,8 +271,8 @@ where
             // Fill in between top and bottom cells.
             context.set_style(
                 Rectangle::from_extent(
-                    scrollbar_area_vertical.min() + vector![0, bar_offset_start_ceil as u16],
-                    [1, (bar_offset_end_floor - bar_offset_start_ceil) as u16],
+                    scrollbar_area_vertical.min() + vector![0, bar_start_ceil as i16],
+                    [1, (bar_end_floor - bar_start_ceil) as i16],
                 ),
                 TextColor {
                     fg: ColorU8Rgb::default().into(),

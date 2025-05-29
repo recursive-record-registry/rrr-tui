@@ -405,16 +405,16 @@ impl App {
                 {
                     let absolute_layout = debug_component.get_taffy_node_data().absolute_layout();
 
-                    if !absolute_layout.content_rect_unclipped().is_empty() {
+                    if !absolute_layout.content_rect().is_empty() {
                         frame.buffer_mut().set_style(
-                            absolute_layout.content_rect_unclipped().into(),
+                            absolute_layout.content_rect().clip().into(),
                             Style::new().bg(ColorU8Rgb::new_f32(0.5, 0.0, 0.0).into()),
                         );
                     }
 
-                    if !absolute_layout.content_rect().is_empty() {
+                    if !absolute_layout.overflow_rect_clip().is_empty() {
                         frame.buffer_mut().set_style(
-                            absolute_layout.content_rect().into(),
+                            absolute_layout.overflow_rect_clip().clip().into(),
                             Style::new().bg(ColorU8Rgb::new_f32(1.0, 0.0, 0.0).into()),
                         );
                     }
