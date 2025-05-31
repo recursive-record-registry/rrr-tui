@@ -1,12 +1,12 @@
 use std::{
     cell::RefCell,
     fmt::Debug,
-    ops::ControlFlow,
+    ops::{ControlFlow, Try},
     time::{Duration, Instant},
 };
 
 use color_eyre::Result;
-use nalgebra::{Point, Translation2, zero};
+use nalgebra::{Point, SVector, Translation2, zero};
 use ratatui::{
     Frame,
     buffer::{Buffer, Cell},
@@ -252,10 +252,11 @@ pub trait Component: Debug {
         Default::default()
     }
 
-    // TODO: Change to SVector
-    fn scroll_position(&self) -> Position {
+    fn scroll_position(&self) -> SVector<u16, 2> {
         Default::default()
     }
+
+    fn on_absolute_layout_updated(&mut self) {}
 
     fn get_debug_label(&self) -> &'static str {
         // std::any::type_name::<Self>()
@@ -293,7 +294,8 @@ impl<T: Component> ComponentExt for T {
     }
 
     fn mark_cached_layout_dirty(&mut self) {
-        self.get_taffy_node_data_mut().mark_cached_layout_dirty();
+        self.get_taffy_node_data_mut()
+            .mark_cached_relative_layout_dirty();
     }
 }
 
@@ -648,6 +650,21 @@ impl<T> DefaultDrawableComponent for T where T: DefaultDrawable + Component {}
 
 assert_obj_safe!(DefaultDrawableComponent);
 
+pub enum TreeControlFlow<B, C> {
+    Continue(C),
+    SkipChildren,
+    Break(B),
+}
+
+impl<B, C> From<ControlFlow<B, C>> for TreeControlFlow<B, C> {
+    fn from(value: ControlFlow<B, C>) -> Self {
+        match value {
+            ControlFlow::Continue(inner) => TreeControlFlow::Continue(inner),
+            ControlFlow::Break(inner) => TreeControlFlow::Break(inner),
+        }
+    }
+}
+
 // Standalone generic functions folľow, because they cannot be on trait objects.
 
 pub fn for_each_child<'a, B: 'a>(
@@ -766,8 +783,8 @@ pub fn depth_first_search_with_data<'a, B: 'a, C1, C2>(
 pub fn depth_first_search_with_data_mut<'a, B: 'a, C1, C2>(
     subtree_root: &'a mut dyn Component,
     init: &C1,
-    visit_preorder: &mut dyn FnMut(&'a mut dyn Component, &C1) -> ControlFlow<B, C1>,
-    visit_postorder: &mut dyn FnMut(&'a mut dyn Component, Vec<C2>) -> ControlFlow<B, C2>,
+    visit_preorder: &mut dyn FnMut(&'a mut dyn Component, &C1) -> TreeControlFlow<B, C1>,
+    visit_postorder: &mut dyn FnMut(&'a mut dyn Component, Option<Vec<C2>>) -> ControlFlow<B, C2>,
 ) -> ControlFlow<B, C2> {
     // Safety:
     // No aliased mutable references actually occur, because the try-operator (`?`) is used to
@@ -775,21 +792,30 @@ pub fn depth_first_search_with_data_mut<'a, B: 'a, C1, C2>(
     // This seems like a case where the Polonius-based borrowck would be required to avoid the use
     // of `unsafe`.
     let subtree_root_ptr = subtree_root as *mut dyn Component;
-    let preorder_data = (visit_preorder)(unsafe { &mut *subtree_root_ptr }, init)?;
-    let mut postorder_data_vec = Vec::<C2>::new();
-    if let Some(break_value) = for_each_child_mut::<B>(unsafe { &mut *subtree_root_ptr }, |child| {
-        let postorder_data = depth_first_search_with_data_mut(
-            child,
-            &preorder_data,
-            visit_preorder,
-            visit_postorder,
-        )?;
-        postorder_data_vec.push(postorder_data);
-        ControlFlow::Continue(())
-    }) {
-        return ControlFlow::Break(break_value);
+    let preorder_cf = (visit_preorder)(unsafe { &mut *subtree_root_ptr }, init);
+    match preorder_cf {
+        TreeControlFlow::Continue(preorder_data) => {
+            let mut postorder_data_vec = Vec::<C2>::new();
+            if let Some(break_value) =
+                for_each_child_mut::<B>(unsafe { &mut *subtree_root_ptr }, |child| {
+                    let postorder_data = depth_first_search_with_data_mut(
+                        child,
+                        &preorder_data,
+                        visit_preorder,
+                        visit_postorder,
+                    )?;
+                    postorder_data_vec.push(postorder_data);
+                    ControlFlow::Continue(())
+                })
+            {
+                return ControlFlow::Break(break_value);
+            }
+
+            (visit_postorder)(unsafe { &mut *subtree_root_ptr }, Some(postorder_data_vec))
+        }
+        TreeControlFlow::SkipChildren => (visit_postorder)(unsafe { &mut *subtree_root_ptr }, None),
+        TreeControlFlow::Break(break_value) => ControlFlow::Break(break_value),
     }
-    (visit_postorder)(unsafe { &mut *subtree_root_ptr }, postorder_data_vec)
 }
 
 pub fn find_component_by_id(

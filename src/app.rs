@@ -38,6 +38,7 @@ pub struct App {
     focus_path: ComponentIdPath,
     debug_id: Option<ComponentId>,
     first_render_instant: Option<Instant>,
+    previous_frame_area: Option<Rect>,
 }
 
 impl App {
@@ -57,6 +58,7 @@ impl App {
             action_tx,
             action_rx,
             first_render_instant: None,
+            previous_frame_area: None,
         };
 
         // Ensure a valid initial focus.
@@ -390,7 +392,11 @@ impl App {
                 },
             );
             taffy::round_layout(&mut self.root_component, ComponentId::root().into());
-            layout::compute_absolute_layout(&mut *self.root_component, area);
+            layout::compute_absolute_layout(
+                &mut *self.root_component,
+                area,
+                self.previous_frame_area,
+            );
 
             let (now, elapsed_time) = self.get_elapsed_time();
             let mut draw_context =
@@ -420,6 +426,8 @@ impl App {
                     }
                 }
             }
+
+            self.previous_frame_area = Some(area);
         })?;
         result
     }

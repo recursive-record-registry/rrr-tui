@@ -2,6 +2,7 @@
 #![feature(iter_intersperse)]
 #![feature(async_trait_bounds)]
 #![feature(const_type_name)]
+#![feature(try_trait_v2)]
 
 use std::sync::Arc;
 

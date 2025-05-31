@@ -8,7 +8,7 @@ use taffy::{
 };
 
 use crate::{
-    component::{self, DefaultDrawableComponent},
+    component::{self, DefaultDrawableComponent, TreeControlFlow},
     geometry::{
         IntoNalgebra, Rectangle,
         ext::{RoundSizeExt, SizeExtNalgebra},
@@ -66,7 +66,9 @@ pub struct AbsoluteLayout {
     pub(self) padding_rect: Rectangle<i16>,
     /// The outermost rectangle containing the border, the padding, and the content.
     pub(self) border_rect: Rectangle<i16>,
-    pub(self) scroll_position: Point<u16, 2>,
+    /// The amount of cells scrolled in each axis.
+    pub(self) scroll_position: SVector<u16, 2>,
+    pub(self) absolute_position_offset: SVector<i16, 2>,
 }
 
 impl AbsoluteLayout {
@@ -86,7 +88,7 @@ impl AbsoluteLayout {
         self.border_rect
     }
 
-    pub fn scroll_position(&self) -> Point<u16, 2> {
+    pub fn scroll_position(&self) -> SVector<u16, 2> {
         self.scroll_position
     }
 
@@ -111,8 +113,9 @@ pub struct TaffyNodeData {
     rounded_layout: taffy::Layout,
     cache: taffy::Cache,
     detailed_grid_info: Option<taffy::DetailedGridInfo>,
-    absolute_layout: AbsoluteLayout,
-    cache_dirty: bool,
+    absolute_layout: Option<AbsoluteLayout>,
+    relative_layout_cache_dirty: bool,
+    absolute_layout_of_successors_dirty: bool,
 }
 
 impl TaffyNodeData {
@@ -124,16 +127,26 @@ impl TaffyNodeData {
     }
 
     pub fn absolute_layout(&self) -> &AbsoluteLayout {
-        &self.absolute_layout
+        self.absolute_layout_opt()
+            .expect("The absolute layout is not computed for this node.")
     }
 
-    pub fn mark_cached_layout_dirty(&mut self) {
-        self.cache_dirty = true;
+    pub fn absolute_layout_opt(&self) -> Option<&AbsoluteLayout> {
+        self.absolute_layout.as_ref()
     }
 
-    fn clear_cache(&mut self) {
+    pub fn mark_cached_relative_layout_dirty(&mut self) {
+        self.relative_layout_cache_dirty = true;
+    }
+
+    pub fn mark_cached_absolute_layout_dirty(&mut self) {
+        self.absolute_layout = None;
+    }
+
+    fn clear_relative_layout_cache(&mut self) {
         self.cache.clear();
-        self.cache_dirty = false;
+        self.relative_layout_cache_dirty = false;
+        self.mark_cached_absolute_layout_dirty();
     }
 }
 
@@ -404,19 +417,42 @@ impl LayoutGridContainer for Box<dyn DefaultDrawableComponent> {
 }
 
 pub fn clear_dirty_cache(root_component: &mut dyn DefaultDrawableComponent) {
-    let _ = component::depth_first_search_with_data_mut::<(), (), bool>(
+    struct PostorderData {
+        relative_dirty: bool,
+        absolute_dirty: bool,
+    }
+
+    let _ = component::depth_first_search_with_data_mut::<(), (), PostorderData>(
         root_component,
         &(),
-        &mut |_, _| ControlFlow::Continue(()),
-        &mut |component, children_dirty| {
-            let dirty =
-                children_dirty.contains(&true) || component.get_taffy_node_data().cache_dirty;
+        &mut |_, _| TreeControlFlow::Continue(()),
+        &mut |component, postorder_data| {
+            let postorder_data = postorder_data.expect("children are never skipped");
+            let children_relative_dirty = postorder_data
+                .iter()
+                .any(|postorder_data| postorder_data.relative_dirty);
+            let children_absolute_dirty = postorder_data
+                .iter()
+                .any(|postorder_data| postorder_data.absolute_dirty);
+            let relative_dirty = children_relative_dirty
+                || component.get_taffy_node_data().relative_layout_cache_dirty;
+            let absolute_dirty = children_absolute_dirty
+                || component.get_taffy_node_data().absolute_layout.is_none();
 
-            if dirty {
-                component.get_taffy_node_data_mut().clear_cache();
+            if relative_dirty {
+                component
+                    .get_taffy_node_data_mut()
+                    .clear_relative_layout_cache();
             }
 
-            ControlFlow::Continue(dirty)
+            component
+                .get_taffy_node_data_mut()
+                .absolute_layout_of_successors_dirty = absolute_dirty;
+
+            ControlFlow::Continue(PostorderData {
+                relative_dirty,
+                absolute_dirty,
+            })
         },
     );
 }
@@ -424,22 +460,17 @@ pub fn clear_dirty_cache(root_component: &mut dyn DefaultDrawableComponent) {
 pub fn compute_absolute_layout(
     root_component: &mut dyn DefaultDrawableComponent,
     frame_area: Rect,
+    previous_frame_area: Option<Rect>,
 ) {
     struct PreorderData {
         overflow_clip_area: Rectangle<i16>,
         absolute_position_offset: SVector<i16, 2>,
-        // TODO: Currently unused, consider removing.
-        predecessor_cumulative_scroll: SVector<u16, 2>,
+        parent_recomputed: bool,
     }
 
-    impl PreorderData {
-        pub fn get_scrolled_area(
-            &self,
-            area_relative: Rectangle<i16>,
-            scroll: SVector<u16, 2>,
-        ) -> Rectangle<i16> {
-            area_relative.translated(self.absolute_position_offset)
-        }
+    if Some(frame_area) != previous_frame_area {
+        // Force layout update if the frame changed.
+        root_component.get_taffy_node_data_mut().absolute_layout = None;
     }
 
     let _ = component::depth_first_search_with_data_mut::<(), PreorderData, ()>(
@@ -451,37 +482,73 @@ pub fn compute_absolute_layout(
                 .into_nalgebra()
                 .coords
                 .cast::<i16>(),
-            predecessor_cumulative_scroll: Default::default(),
+            parent_recomputed: false,
         },
         &mut |component, preorder_data| {
-            let scroll_position = component.scroll_position().into_nalgebra().coords;
+            let absolute_layout_of_successors_dirty = std::mem::replace(
+                &mut component
+                    .get_taffy_node_data_mut()
+                    .absolute_layout_of_successors_dirty,
+                false,
+            );
+
+            if let Some(absolute_layout) = component.get_taffy_node_data().absolute_layout.as_ref()
+                && !preorder_data.parent_recomputed
+            {
+                // The absolute layout is cached from a previous invocation, no need to recompute it.
+                if absolute_layout_of_successors_dirty {
+                    // A successor is dirty, keep traversing.
+                    return TreeControlFlow::Continue(PreorderData {
+                        overflow_clip_area: absolute_layout.overflow_rect_clip,
+                        absolute_position_offset: absolute_layout.absolute_position_offset,
+                        parent_recomputed: preorder_data.parent_recomputed,
+                    });
+                } else {
+                    // None of the successors are dirty, skip visiting them.
+                    return TreeControlFlow::SkipChildren;
+                }
+            }
+
+            let scroll_position = component.scroll_position();
             let taffy_node_data = component.get_taffy_node_data_mut();
             let layout = &taffy_node_data.rounded_layout;
-            let absolute_layout = &mut taffy_node_data.absolute_layout;
-            absolute_layout.overflow_size = layout
+            let overflow_size = layout
                 .content_size
                 .into_nalgebra()
                 .try_cast::<u16>()
                 .unwrap_or_default();
-
-            absolute_layout.content_rect =
-                preorder_data.get_scrolled_area(layout.content_rect(), scroll_position);
-            absolute_layout.padding_rect =
-                preorder_data.get_scrolled_area(layout.padding_rect(), scroll_position);
-            absolute_layout.border_rect =
-                preorder_data.get_scrolled_area(layout.border_rect(), scroll_position);
-            absolute_layout.scroll_position = scroll_position.into();
-            //absolute_layout.overflow_rect_clip = preorder_data.overflow_clip_area;
-            absolute_layout.overflow_rect_clip = preorder_data
+            let content_rect = layout
+                .content_rect()
+                .translated(preorder_data.absolute_position_offset);
+            let padding_rect = layout
+                .padding_rect()
+                .translated(preorder_data.absolute_position_offset);
+            let border_rect = layout
+                .border_rect()
+                .translated(preorder_data.absolute_position_offset);
+            let overflow_rect_clip = preorder_data
                 .overflow_clip_area
                 .cast::<i16>()
-                .intersect(&absolute_layout.padding_rect);
-            ControlFlow::Continue(PreorderData {
-                overflow_clip_area: absolute_layout.overflow_rect_clip,
-                predecessor_cumulative_scroll: preorder_data.predecessor_cumulative_scroll
-                    + scroll_position,
-                absolute_position_offset: absolute_layout.padding_rect.min().cast::<i16>().coords
-                    - scroll_position.cast::<i16>(),
+                .intersect(&padding_rect);
+            let absolute_position_offset =
+                padding_rect.min().cast::<i16>().coords - scroll_position.cast::<i16>();
+
+            taffy_node_data.absolute_layout = Some(AbsoluteLayout {
+                overflow_size,
+                overflow_rect_clip,
+                content_rect,
+                padding_rect,
+                border_rect,
+                scroll_position,
+                absolute_position_offset,
+            });
+
+            component.on_absolute_layout_updated();
+
+            TreeControlFlow::Continue(PreorderData {
+                overflow_clip_area: overflow_rect_clip,
+                absolute_position_offset,
+                parent_recomputed: true,
             })
         },
         &mut |_, _| ControlFlow::Continue(()),
@@ -512,31 +579,49 @@ pub fn trace_tree_custom(root: &dyn DefaultDrawableComponent) {
         &mut |component, preorder_data| {
             let taffy_node_data = component.get_taffy_node_data();
             let rounded_layout = &taffy_node_data.rounded_layout;
-            let absolute_layout = &taffy_node_data.absolute_layout;
-            writeln! {
-                &mut buffer_string,
-                "{lines}{fork}{label} [ xr: {xr}, yr: {yr}, xa: {xa}, ya: {ya}, w: {w}, h: {h}, wo: {wo}, ho: {ho}, xs: {xs}, ys: {ys} ]",
-                lines = preorder_data.lines,
-                label = component.get_debug_label(),
-                fork = if preorder_data.first {
-                    ""
-                } else if component.get_id() == preorder_data.last_child_id {
-                    "└──"
-                } else {
-                    "├──"
-                },
-                xr = rounded_layout.location.x,
-                yr = rounded_layout.location.y,
-                xa = absolute_layout.border_rect.min().x,
-                ya = absolute_layout.border_rect.min().y,
-                w = absolute_layout.border_rect.extent().x,
-                h = absolute_layout.border_rect.extent().y,
-                wo = absolute_layout.overflow_size.x,
-                ho = absolute_layout.overflow_size.y,
-                xs = absolute_layout.scroll_position.x,
-                ys = absolute_layout.scroll_position.y,
+            if let Some(absolute_layout) = taffy_node_data.absolute_layout.as_ref() {
+                writeln! {
+                    &mut buffer_string,
+                    "{lines}{fork}{label} [ xr: {xr}, yr: {yr}, xa: {xa}, ya: {ya}, w: {w}, h: {h}, wo: {wo}, ho: {ho}, xs: {xs}, ys: {ys} ]",
+                    lines = preorder_data.lines,
+                    label = component.get_debug_label(),
+                    fork = if preorder_data.first {
+                        ""
+                    } else if component.get_id() == preorder_data.last_child_id {
+                        "└──"
+                    } else {
+                        "├──"
+                    },
+                    xr = rounded_layout.location.x,
+                    yr = rounded_layout.location.y,
+                    xa = absolute_layout.border_rect.min().x,
+                    ya = absolute_layout.border_rect.min().y,
+                    w = absolute_layout.border_rect.extent().x,
+                    h = absolute_layout.border_rect.extent().y,
+                    wo = absolute_layout.overflow_size.x,
+                    ho = absolute_layout.overflow_size.y,
+                    xs = absolute_layout.scroll_position.x,
+                    ys = absolute_layout.scroll_position.y,
+                }
+                .unwrap();
+            } else {
+                writeln! {
+                    &mut buffer_string,
+                    "{lines}{fork}{label} [ xr: {xr}, yr: {yr} ]",
+                    lines = preorder_data.lines,
+                    label = component.get_debug_label(),
+                    fork = if preorder_data.first {
+                        ""
+                    } else if component.get_id() == preorder_data.last_child_id {
+                        "└──"
+                    } else {
+                        "├──"
+                    },
+                    xr = rounded_layout.location.x,
+                    yr = rounded_layout.location.y,
+                }
+                .unwrap();
             }
-            .unwrap();
             ControlFlow::Continue(PreorderData {
                 lines: format! {
                     "{lines}{bar}",

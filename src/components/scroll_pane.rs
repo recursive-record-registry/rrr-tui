@@ -1,10 +1,7 @@
 use color_eyre::eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, MouseEvent, MouseEventKind};
 use nalgebra::{SVector, point, vector};
-use ratatui::{
-    buffer::Cell,
-    layout::{Position, Rect},
-};
+use ratatui::buffer::Cell;
 use taffy::Overflow;
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -15,7 +12,7 @@ use crate::{
         Component, ComponentExt, ComponentId, DefaultDrawableComponent, Drawable,
         HandleEventSuccess,
     },
-    geometry::{IntoNalgebra, Rectangle},
+    geometry::Rectangle,
     layout::TaffyNodeData,
     tui::Event,
 };
@@ -35,7 +32,7 @@ pub struct ScrollPane<T: DefaultDrawableComponent> {
     id: ComponentId,
     taffy_node_data: TaffyNodeData,
     pub child: T,
-    scroll_position: Position,
+    scroll_position: SVector<u16, 2>,
 }
 
 impl<T> ScrollPane<T>
@@ -67,10 +64,7 @@ where
         let overflow_size = absolute_layout.overflow_size();
         let content_size = absolute_layout.content_rect().extent();
 
-        overflow_size.sup(
-            &(content_size.try_cast::<u16>().unwrap()
-                + self.scroll_position.into_nalgebra().coords),
-        )
+        overflow_size.sup(&(content_size.try_cast::<u16>().unwrap() + self.scroll_position))
     }
 
     fn scroll_size(&self) -> SVector<u16, 2> {
@@ -103,7 +97,8 @@ where
             ScrollDirection::Forward => std::cmp::min(*component + 1, scroll_size),
         };
 
-        self.get_taffy_node_data_mut().mark_cached_layout_dirty();
+        self.get_taffy_node_data_mut()
+            .mark_cached_absolute_layout_dirty();
 
         Ok(HandleEventSuccess::handled().with_action(Action::Render))
     }
@@ -159,8 +154,13 @@ where
         }
     }
 
-    fn scroll_position(&self) -> Position {
+    fn scroll_position(&self) -> SVector<u16, 2> {
         self.scroll_position
+    }
+
+    fn on_absolute_layout_updated(&mut self) {
+        // TODO: Update the scroll bar dimensions here.
+        tracing::debug!("TODO {:?}", self.id);
     }
 
     fn get_id(&self) -> ComponentId {
