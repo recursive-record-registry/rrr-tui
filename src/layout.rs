@@ -1,7 +1,7 @@
 use std::{fmt::Debug, ops::ControlFlow};
 
-use nalgebra::{Point, SVector, point, vector};
-use ratatui::layout::{Position, Rect, Size};
+use nalgebra::{SVector, point, vector};
+use ratatui::layout::Rect;
 use taffy::{
     CacheTree, LayoutBlockContainer, LayoutFlexboxContainer, LayoutGridContainer,
     LayoutPartialTree, PrintTree, RoundTree, TraversePartialTree, TraverseTree,
@@ -11,7 +11,7 @@ use crate::{
     component::{self, DefaultDrawableComponent, TreeControlFlow},
     geometry::{
         IntoNalgebra, Rectangle,
-        ext::{RoundSizeExt, SizeExtNalgebra},
+        ext::SizeExtNalgebra,
     },
 };
 

@@ -3,8 +3,7 @@ use std::time::{Duration, Instant};
 
 use color_eyre::eyre::Result;
 use easing_function::{Easing, EasingFunction};
-use nalgebra::Point;
-use ratatui::layout::{Position, Rect, Size};
+use ratatui::layout::Size;
 use ratatui::text::Span;
 use tokio::sync::mpsc::UnboundedSender;
 

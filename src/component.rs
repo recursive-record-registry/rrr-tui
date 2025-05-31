@@ -1,16 +1,16 @@
 use std::{
     cell::RefCell,
     fmt::Debug,
-    ops::{ControlFlow, Try},
+    ops::ControlFlow,
     time::{Duration, Instant},
 };
 
 use color_eyre::Result;
-use nalgebra::{Point, SVector, Translation2, zero};
+use nalgebra::{Point, SVector};
 use ratatui::{
     Frame,
     buffer::{Buffer, Cell},
-    layout::{Position, Rect, Size},
+    layout::{Position, Size},
     style::Style,
     widgets::{StatefulWidgetRef, WidgetRef},
 };
@@ -20,11 +20,10 @@ use tracing::instrument;
 use crate::{
     action::{Action, ComponentMessage},
     geometry::{
-        IntoNalgebra, Rectangle,
+        Rectangle,
         ext::nalgebra::{PointExt, PointExtRatatui},
     },
-    layout::{AbsoluteLayout, TaffyNodeData},
-    trace_dbg, tracing_dbg,
+    layout::{AbsoluteLayout, TaffyNodeData}, tracing_dbg,
     tui::Event,
 };
 

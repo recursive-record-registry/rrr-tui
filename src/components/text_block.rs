@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use color_eyre::eyre::Result;
-use ratatui::{layout::Rect, text::Span};
+use ratatui::text::Span;
 use taffy::AvailableSpace;
 use tokio::sync::mpsc::UnboundedSender;
 
