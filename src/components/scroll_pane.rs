@@ -269,14 +269,16 @@ where
             }
 
             // Fill in between top and bottom cells.
-            context.set_style(
-                Rectangle::from_extent(
-                    scrollbar_area_vertical.min() + vector![0, bar_start_ceil as i16],
-                    [1, (bar_end_floor - bar_start_ceil) as i16],
-                ),
-                TextColor {
-                    fg: ColorU8Rgb::default().into(),
-                    bg: scrollbar_color,
+            context.for_each_cell_in_mut(
+                Rectangle::from_minmax(
+                    point![0, bar_start_ceil as i16],
+                    point![1, bar_end_floor as i16],
+                )
+                .translated(scrollbar_area_vertical.min().coords)
+                .clip(),
+                |cell| {
+                    cell.set_char(' ');
+                    cell.set_bg(scrollbar_color.into());
                 },
             );
         }
