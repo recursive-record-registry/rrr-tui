@@ -15,6 +15,7 @@ use tracing::{Instrument, debug};
 use crate::app::App;
 
 mod action;
+mod animation;
 mod app;
 mod args;
 mod cbor;

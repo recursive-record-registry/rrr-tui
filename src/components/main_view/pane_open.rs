@@ -15,13 +15,14 @@ use tokio::sync::mpsc::UnboundedSender;
 use tracing::{Instrument, debug, info_span};
 
 use crate::action::{Action, ComponentMessage};
+use crate::animation::{BlendAnimation, BlendAnimationDescriptor, RectAnimation};
 use crate::color::{ColorOklch, TextColor};
 use crate::component::{
     Component, ComponentExt, ComponentId, DrawContext, Drawable, HandleEventSuccess,
 };
 use crate::components::button::Button;
 use crate::components::input_field::InputField;
-use crate::components::open_status::{Animation, OpenStatus, SpinnerContent};
+use crate::components::open_status::{OpenStatus, SpinnerContent};
 use crate::components::radio_array::RadioArray;
 use crate::components::styled_widget::StyledWidget;
 use crate::error;
@@ -162,7 +163,7 @@ impl PaneOpen {
         self.status_spinner.set_content(
             SpinnerContent::default()
                 .with_text("Searching…".into())
-                .with_animation(Some(Animation::ProgressIndeterminate {
+                .with_animation(Some(RectAnimation::ProgressIndeterminate {
                     period: Duration::from_secs_f32(0.5),
                     highlight: TextColor::default().bg(ColorOklch::new(0.4, 0.0, 0.0)),
                 })),
@@ -220,14 +221,22 @@ impl Component for PaneOpen {
     fn update(&mut self, message: ComponentMessage) -> Result<Option<Action>> {
         match message {
             ComponentMessage::RecordOpen { read_result, .. } => {
-                let now = Instant::now();
+                let now = Instant::now(); // TODO: Should be next frame's instant.
                 if read_result.is_some() {
                     self.record_name_field.reset_content();
                     self.status_spinner.set_content(
                         SpinnerContent::default()
                             .with_text("Record found".into())
-                            .with_animation(Some(Animation::Ease {
-                                easing_function: easing_function::easings::EaseInOutCubic.into(),
+                            .with_animation(Some(RectAnimation::Ease {
+                                blend: BlendAnimation::new_started(
+                                    BlendAnimationDescriptor {
+                                        easing_function: easing_function::easings::EaseInOutCubic
+                                            .into(),
+                                        start_delay: Duration::from_secs_f32(0.25),
+                                        duration: Duration::from_secs_f32(0.75),
+                                    },
+                                    now,
+                                ),
                                 color_start: TextColor::default().fg(ColorOklch::new(
                                     0.79,
                                     0.1603,
@@ -238,16 +247,22 @@ impl Component for PaneOpen {
                                     0.0,
                                     153.29 / 360.0,
                                 )),
-                                instant_start: now + Duration::from_secs_f32(0.25),
-                                instant_end: now + Duration::from_secs_f32(1.0),
                             })),
                     );
                 } else {
                     self.status_spinner.set_content(
                         SpinnerContent::default()
                             .with_text("Record not found".into())
-                            .with_animation(Some(Animation::Ease {
-                                easing_function: easing_function::easings::EaseInOutCubic.into(),
+                            .with_animation(Some(RectAnimation::Ease {
+                                blend: BlendAnimation::new_started(
+                                    BlendAnimationDescriptor {
+                                        easing_function: easing_function::easings::EaseInOutCubic
+                                            .into(),
+                                        start_delay: Duration::from_secs_f32(0.25),
+                                        duration: Duration::from_secs_f32(0.75),
+                                    },
+                                    now,
+                                ),
                                 color_start: TextColor::default().fg(ColorOklch::new(
                                     0.79,
                                     0.1603,
@@ -258,8 +273,6 @@ impl Component for PaneOpen {
                                     0.0,
                                     67.76 / 360.0,
                                 )),
-                                instant_start: now + Duration::from_secs_f32(0.25),
-                                instant_end: now + Duration::from_secs_f32(1.0),
                             })),
                     );
                 }

@@ -1,20 +1,24 @@
-use std::num::NonZero;
+use std::{
+    num::NonZero,
+    ops::Range,
+    time::Instant,
+};
 
 use color_eyre::eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, MouseEvent, MouseEventKind};
-use nalgebra::{SVector, point, vector};
+use nalgebra::{SVector, vector};
 use ratatui::buffer::Cell;
 use taffy::Overflow;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     action::Action,
-    color::{Color, ColorU8Rgb, TextColor},
+    animation::{BlendAnimation, BlendAnimationDescriptor},
+    color::{Blended, ColorOklab, ColorU8Rgb, Over, TextColor},
     component::{
         Component, ComponentExt, ComponentId, DefaultDrawableComponent, Drawable,
         HandleEventSuccess,
     },
-    geometry::Rectangle,
     layout::TaffyNodeData,
     tui::Event,
 };
@@ -37,7 +41,9 @@ struct ScrollBarLayoutCap {
 
 #[derive(Debug)]
 struct ScrollBarLayout {
-    rail_area: Rectangle<i16>,
+    rail_x: i16,
+    rail_range_top: Range<i16>,
+    rail_range_bottom: Range<i16>,
     bar_start_ceil: i16,
     bar_end_floor: i16,
     bar_start_cap: Option<ScrollBarLayoutCap>,
@@ -51,6 +57,9 @@ pub struct ScrollPane<T: DefaultDrawableComponent> {
     pub child: T,
     scroll_position: SVector<u16, 2>,
     scroll_bar_layout: Option<ScrollBarLayout>,
+    animation: Option<BlendAnimation>,
+    color_rail: Blended<ColorOklab>,
+    color_bar: Blended<ColorOklab>,
 }
 
 impl<T> ScrollPane<T>
@@ -73,7 +82,31 @@ where
             child,
             scroll_position: Default::default(),
             scroll_bar_layout: None,
+            animation: None,
+            color_rail: Blended::new(ColorU8Rgb::new_f32(1.0, 1.0, 1.0).into(), 0.2),
+            color_bar: Blended::new(ColorU8Rgb::new_f32(1.0, 1.0, 1.0).into(), 1.0),
         }
+    }
+
+    pub fn with_animation(mut self, animation_descriptor: BlendAnimationDescriptor) -> Self {
+        self.animation = Some(BlendAnimation::new_stopped(animation_descriptor));
+        self
+    }
+
+    pub fn with_rail_color<C>(mut self, color_rail: Blended<C>) -> Self
+    where
+        ColorOklab: From<C>,
+    {
+        self.color_rail = color_rail.cast::<ColorOklab>();
+        self
+    }
+
+    pub fn with_bar_color<C>(mut self, color_bar: Blended<C>) -> Self
+    where
+        ColorOklab: From<C>,
+    {
+        self.color_bar = color_bar.cast::<ColorOklab>();
+        self
     }
 
     /// The overflow size expanded by the view scrolled out of the overflow bounds.
@@ -115,6 +148,10 @@ where
             ScrollDirection::Backward => component.saturating_sub(1),
             ScrollDirection::Forward => std::cmp::min(*component + 1, scroll_size),
         };
+
+        if let Some(animation) = self.animation.as_mut() {
+            animation.restart(Instant::now()); // TODO: Should be next frame's instant.
+        }
 
         self.get_taffy_node_data_mut()
             .mark_cached_absolute_layout_dirty();
@@ -200,19 +237,16 @@ where
                 + ((rail_len_eights - bar_len_eights) * self.scroll_position.y as u32)
                     .div_ceil(scroll_size.y as u32) as i32;
             let bar_end_eights = bar_start_eights + bar_len_eights as i32;
+            let bar_start_floor = bar_start_eights.div_floor(8) as i16;
             let bar_start_ceil = bar_start_eights.div_ceil(8) as i16;
             let bar_end_floor = bar_end_eights.div_floor(8) as i16;
+            let bar_end_ceil = bar_end_eights.div_ceil(8) as i16;
 
             // Lay out the top cell of the bar.
-            let bar_start_cap = (bar_start_eights % 8 != 0).then(|| {
-                let bar_start_floor = bar_start_eights.div_floor(8) as i16;
-                ScrollBarLayoutCap {
-                    absolute_position: bar_start_floor,
-                    height_eights: NonZero::new(
-                        (bar_start_eights - bar_start_floor as i32 * 8) as u8,
-                    )
+            let bar_start_cap = (bar_start_eights % 8 != 0).then(|| ScrollBarLayoutCap {
+                absolute_position: bar_start_floor,
+                height_eights: NonZero::new((bar_start_eights - bar_start_floor as i32 * 8) as u8)
                     .expect("the remainder is assumed to be 0"),
-                }
             });
 
             // Lay out the bottom cell of the bar.
@@ -222,16 +256,10 @@ where
                     .expect("the remainder is assumed to be 0"),
             });
 
-            let rail_area = Rectangle::from_extent(
-                [
-                    content_rect.min().x + content_rect.extent().x - 1,
-                    content_rect.min().y,
-                ],
-                [1, content_rect.extent().y],
-            );
-
             ScrollBarLayout {
-                rail_area,
+                rail_x: content_rect.min().x + content_rect.extent().x - 1,
+                rail_range_top: content_rect.min().y..bar_start_floor,
+                rail_range_bottom: bar_end_ceil..content_rect.max().y,
                 bar_start_ceil,
                 bar_end_floor,
                 bar_start_cap,
@@ -278,75 +306,93 @@ where
     where
         Self: 'a,
     {
-        let scrollbar_color = ColorU8Rgb::new_f32(0.0, 0.0, 1.0).into();
-        let rail_color = ColorU8Rgb::new_f32(0.0, 0.0, 0.3).into();
-
         context.draw_component(&self.child)?;
 
-        if let Some(scrollbar_layout) = self.scroll_bar_layout.as_ref() {
-            // Draw rail.
-            context.set_style(
-                scrollbar_layout.rail_area,
-                TextColor {
-                    fg: ColorU8Rgb::default().into(),
-                    bg: rail_color,
-                },
-            );
+        let Some(animation) = self.animation.as_ref() else {
+            return Ok(());
+        };
 
-            // Draw top cell of the bar.
-            if let Some(bar_start_cap) = scrollbar_layout.bar_start_cap.as_ref() {
-                let position = vector![
-                    scrollbar_layout.rail_area.min().x,
-                    bar_start_cap.absolute_position
-                ];
-                if let Some(cell) = context.get_cell_mut(position) {
-                    draw_block_symbol(cell, bar_start_cap.height_eights, scrollbar_color, false);
-                }
+        let Some(scrollbar_layout) = self.scroll_bar_layout.as_ref() else {
+            return Ok(());
+        };
+
+        let now = context.now();
+        let alpha_rail = animation.apply(now, &self.color_rail.alpha, &0.0);
+        let alpha_bar = animation.apply(now, &self.color_bar.alpha, &0.0);
+
+        if alpha_rail <= 0.0 && alpha_bar <= 0.0 {
+            return Ok(());
+        }
+
+        let color_rail = Blended::new(self.color_rail.color, alpha_rail);
+        let color_bar = Blended::new(self.color_bar.color, alpha_bar);
+
+        // Draw rail.
+        for y in scrollbar_layout
+            .rail_range_top
+            .clone()
+            .chain(scrollbar_layout.rail_range_bottom.clone())
+        {
+            if let Some(cell) = context.get_cell_mut([scrollbar_layout.rail_x, y]) {
+                cell.bg = color_rail
+                    .over(&ColorU8Rgb::try_from(cell.bg).unwrap_or_default().into())
+                    .into();
             }
+        }
 
-            // Draw bottom cell of the bar.
-            if let Some(bar_end_cap) = scrollbar_layout.bar_end_cap.as_ref() {
-                let position = vector![
-                    scrollbar_layout.rail_area.min().x,
-                    bar_end_cap.absolute_position
-                ];
-                if let Some(cell) = context.get_cell_mut(position) {
-                    draw_block_symbol(cell, bar_end_cap.height_eights, scrollbar_color, true);
-                }
+        // Draw top cell of the bar.
+        if let Some(bar_start_cap) = scrollbar_layout.bar_start_cap.as_ref() {
+            let position = vector![scrollbar_layout.rail_x, bar_start_cap.absolute_position];
+            if let Some(cell) = context.get_cell_mut(position) {
+                draw_block_symbol(
+                    cell,
+                    bar_start_cap.height_eights,
+                    color_bar,
+                    color_rail,
+                    false,
+                );
             }
+        }
 
-            // Fill in between top and bottom cells.
-            context.for_each_cell_in_mut(
-                Rectangle::from_minmax(
-                    point![
-                        scrollbar_layout.rail_area.min().x,
-                        scrollbar_layout.bar_start_ceil
-                    ],
-                    point![
-                        scrollbar_layout.rail_area.min().x + 1,
-                        scrollbar_layout.bar_end_floor
-                    ],
-                )
-                .clip(),
-                |cell| {
-                    cell.set_char(' ');
-                    cell.set_bg(scrollbar_color.into());
-                },
-            );
+        // Draw bottom cell of the bar.
+        if let Some(bar_end_cap) = scrollbar_layout.bar_end_cap.as_ref() {
+            let position = vector![scrollbar_layout.rail_x, bar_end_cap.absolute_position];
+            if let Some(cell) = context.get_cell_mut(position) {
+                draw_block_symbol(cell, bar_end_cap.height_eights, color_bar, color_rail, true);
+            }
+        }
+
+        // Fill in between top and bottom cells.
+        for y in scrollbar_layout.bar_start_ceil..scrollbar_layout.bar_end_floor {
+            if let Some(cell) = context.get_cell_mut([scrollbar_layout.rail_x, y]) {
+                cell.set_char(' ');
+                cell.bg = color_bar
+                    .over(&ColorU8Rgb::try_from(cell.bg).unwrap_or_default().into())
+                    .into();
+            }
         }
 
         Ok(())
     }
 }
 
-fn draw_block_symbol(cell: &mut Cell, height: NonZero<u8>, color: Color, invert: bool) {
+fn draw_block_symbol(
+    cell: &mut Cell,
+    height: NonZero<u8>,
+    color_fg: Blended<ColorOklab>,
+    color_bg: Blended<ColorOklab>,
+    invert: bool,
+) {
     const SYMBOLS: [&str; 9] = ["█", "▇", "▆", "▅", "▄", "▃", "▂", "▁", " "];
     cell.set_symbol(SYMBOLS[std::cmp::min(height.get(), 8) as usize]);
     let mut style = TextColor {
-        fg: ColorU8Rgb::try_from(cell.fg).unwrap_or_default().into(),
-        bg: ColorU8Rgb::try_from(cell.bg).unwrap_or_default().into(),
+        fg: color_fg
+            .over(&ColorU8Rgb::try_from(cell.bg).unwrap_or_default().into())
+            .into(),
+        bg: color_bg
+            .over(&ColorU8Rgb::try_from(cell.bg).unwrap_or_default().into())
+            .into(),
     };
-    style.fg = color;
     if invert {
         style = style.invert();
     }
