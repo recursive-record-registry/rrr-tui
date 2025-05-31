@@ -60,14 +60,14 @@ impl Lerp for TextColor {
 }
 
 impl<'a> From<&'a TextColor> for Style {
-    fn from(value: &'a TextColor) -> Self {
-        Style::new().fg(value.fg.into()).bg(value.bg.into())
+    fn from(color: &'a TextColor) -> Self {
+        Style::new().fg(color.fg.into()).bg(color.bg.into())
     }
 }
 
 impl From<TextColor> for Style {
-    fn from(value: TextColor) -> Self {
-        (&value).into()
+    fn from(color: TextColor) -> Self {
+        (&color).into()
     }
 }
 
@@ -76,6 +76,14 @@ lazy_static! {
         kolor::ColorConversion::new(kolor::spaces::ENCODED_SRGB, kolor::spaces::OKLCH);
     static ref OKLCH_TO_ENCODED_SRGB: ColorConversion =
         kolor::ColorConversion::new(kolor::spaces::OKLCH, kolor::spaces::ENCODED_SRGB);
+    static ref OKLCH_TO_OKLAB: ColorConversion =
+        kolor::ColorConversion::new(kolor::spaces::OKLCH, kolor::spaces::OKLAB);
+    static ref OKLAB_TO_OKLCH: ColorConversion =
+        kolor::ColorConversion::new(kolor::spaces::OKLAB, kolor::spaces::OKLCH);
+    static ref ENCODED_SRGB_TO_OKLAB: ColorConversion =
+        kolor::ColorConversion::new(kolor::spaces::ENCODED_SRGB, kolor::spaces::OKLAB);
+    static ref OKLAB_TO_ENCODED_SRGB: ColorConversion =
+        kolor::ColorConversion::new(kolor::spaces::OKLAB, kolor::spaces::ENCODED_SRGB);
 }
 
 /// Represents a color in the Oklch color space.
@@ -128,29 +136,126 @@ impl Lerp for ColorOklch {
     }
 }
 
+impl From<kolor::Vec3> for ColorOklch {
+    fn from(vec: kolor::Vec3) -> Self {
+        Self::new(vec.x, vec.y, vec.z / std::f32::consts::TAU)
+    }
+}
+
+impl From<ColorOklch> for kolor::Vec3 {
+    fn from(oklch: ColorOklch) -> Self {
+        kolor::Vec3::new(
+            oklch.lightness,
+            oklch.chroma,
+            oklch.hue * std::f32::consts::TAU,
+        )
+    }
+}
+
 impl From<ColorOklch> for Color {
-    fn from(
-        oklch @ ColorOklch {
-            lightness,
-            chroma,
-            hue,
-        }: ColorOklch,
-    ) -> Self {
-        let rgb = OKLCH_TO_ENCODED_SRGB.convert(kolor::Vec3 {
-            x: lightness,
-            y: chroma,
-            z: hue * std::f32::consts::TAU,
-        });
+    fn from(oklch: ColorOklch) -> Self {
         Self {
             oklch,
-            rgb: ColorU8Rgb::new_f32(rgb.x, rgb.y, rgb.z),
+            rgb: OKLCH_TO_ENCODED_SRGB.convert(oklch.into()).into(),
         }
     }
 }
 
+impl From<Color> for ColorOklch {
+    fn from(color: Color) -> Self {
+        color.oklch
+    }
+}
+
+impl From<ColorU8Rgb> for ColorOklch {
+    fn from(u8rgb: ColorU8Rgb) -> Self {
+        ENCODED_SRGB_TO_OKLCH.convert(u8rgb.into()).into()
+    }
+}
+
+impl From<ColorOklab> for ColorOklch {
+    fn from(oklab: ColorOklab) -> Self {
+        OKLAB_TO_OKLCH.convert(oklab.into()).into()
+    }
+}
+
 impl From<ColorOklch> for ratatui::style::Color {
-    fn from(value: ColorOklch) -> Self {
-        Color::from(value).into()
+    fn from(oklch: ColorOklch) -> Self {
+        ColorU8Rgb::from(oklch).into()
+    }
+}
+
+/// Represents a color in the Oklab color space.
+/// Mainly used for color blending.
+#[derive(Debug, Clone, Copy)]
+pub struct ColorOklab {
+    pub lightness: f32,
+    pub chroma_a: f32,
+    pub chroma_b: f32,
+}
+
+impl ColorOklab {
+    pub fn new(lightness: f32, chroma_a: f32, chroma_b: f32) -> Self {
+        Self {
+            lightness,
+            chroma_a,
+            chroma_b,
+        }
+    }
+}
+
+impl Lerp for ColorOklab {
+    fn lerp(&self, rhs: &Self, t: f32) -> Self {
+        Self {
+            lightness: Lerp::lerp(&self.lightness, &rhs.lightness, t),
+            chroma_a: Lerp::lerp(&self.chroma_a, &rhs.chroma_a, t),
+            chroma_b: Lerp::lerp(&self.chroma_b, &rhs.chroma_b, t),
+        }
+    }
+}
+
+impl From<kolor::Vec3> for ColorOklab {
+    fn from(vec: kolor::Vec3) -> Self {
+        Self::new(vec.x, vec.y, vec.z)
+    }
+}
+
+impl From<ColorOklab> for kolor::Vec3 {
+    fn from(oklab: ColorOklab) -> Self {
+        kolor::Vec3::new(oklab.lightness, oklab.chroma_a, oklab.chroma_b)
+    }
+}
+
+impl From<ColorOklab> for Color {
+    fn from(oklab: ColorOklab) -> Self {
+        Self {
+            oklch: oklab.into(),
+            rgb: oklab.into(),
+        }
+    }
+}
+
+impl From<Color> for ColorOklab {
+    fn from(color: Color) -> Self {
+        color.oklch.into()
+    }
+}
+
+impl From<ColorU8Rgb> for ColorOklab {
+    fn from(u8rgb: ColorU8Rgb) -> Self {
+        ENCODED_SRGB_TO_OKLAB.convert(u8rgb.into()).into()
+    }
+}
+
+impl From<ColorOklch> for ColorOklab {
+    fn from(oklch: ColorOklch) -> Self {
+        OKLCH_TO_OKLAB.convert(oklch.into()).into()
+    }
+}
+
+impl From<ColorOklab> for ratatui::style::Color {
+    fn from(oklab: ColorOklab) -> Self {
+        ColorU8Rgb::from(oklab).into()
     }
 }
 
@@ -175,31 +280,60 @@ impl ColorU8Rgb {
     }
 }
 
+impl From<kolor::Vec3> for ColorU8Rgb {
+    fn from(vec: kolor::Vec3) -> Self {
+        Self::new_f32(vec.x, vec.y, vec.z)
+    }
+}
+
+impl From<ColorU8Rgb> for kolor::Vec3 {
+    fn from(u8rgb: ColorU8Rgb) -> Self {
+        kolor::Vec3::new(
+            u8rgb.red as f32 / 0xFF as f32,
+            u8rgb.green as f32 / 0xFF as f32,
+            u8rgb.blue as f32 / 0xFF as f32,
+        )
+    }
+}
+
 impl From<ColorU8Rgb> for Color {
-    fn from(rgb @ ColorU8Rgb { red, green, blue }: ColorU8Rgb) -> Self {
-        let oklch = ENCODED_SRGB_TO_OKLCH.convert(kolor::Vec3::new(
-            red as f32 / 0xFF as f32,
-            green as f32 / 0xFF as f32,
-            blue as f32 / 0xFF as f32,
-        ));
+    fn from(rgb: ColorU8Rgb) -> Self {
         Self {
-            oklch: ColorOklch::new(oklch.x, oklch.y, oklch.z / std::f32::consts::TAU),
+            oklch: rgb.into(),
             rgb,
         }
     }
 }
 
+impl From<Color> for ColorU8Rgb {
+    fn from(color: Color) -> Self {
+        color.rgb
+    }
+}
+
+impl From<ColorOklab> for ColorU8Rgb {
+    fn from(oklab: ColorOklab) -> Self {
+        OKLAB_TO_ENCODED_SRGB.convert(oklab.into()).into()
+    }
+}
+
+impl From<ColorOklch> for ColorU8Rgb {
+    fn from(oklch: ColorOklch) -> Self {
+        OKLCH_TO_ENCODED_SRGB.convert(oklch.into()).into()
+    }
+}
+
 impl From<ColorU8Rgb> for ratatui::style::Color {
-    fn from(value: ColorU8Rgb) -> Self {
-        Color::from(value).into()
+    fn from(u8rgb: ColorU8Rgb) -> Self {
+        Self::Rgb(u8rgb.red, u8rgb.green, u8rgb.blue)
     }
 }
 
 impl TryFrom<ratatui::style::Color> for ColorU8Rgb {
     type Error = ();
 
-    fn try_from(value: ratatui::style::Color) -> Result<Self, Self::Error> {
-        if let ratatui::style::Color::Rgb(r, g, b) = value {
+    fn try_from(color: ratatui::style::Color) -> Result<Self, Self::Error> {
+        if let ratatui::style::Color::Rgb(r, g, b) = color {
             Ok(ColorU8Rgb::new(r, g, b))
         } else {
             Err(())
@@ -222,17 +356,64 @@ impl Lerp for Color {
 impl TryFrom<ratatui::style::Color> for Color {
     type Error = ();
 
-    fn try_from(value: ratatui::style::Color) -> Result<Self, Self::Error> {
-        use ratatui::style::Color::*;
-        match value {
-            Rgb(r, g, b) => Ok(ColorU8Rgb::new(r, g, b).into()),
-            _ => Err(()),
-        }
+    fn try_from(color: ratatui::style::Color) -> Result<Self, Self::Error> {
+        Ok(ColorU8Rgb::try_from(color)?.into())
     }
 }
 
 impl From<Color> for ratatui::style::Color {
-    fn from(value: Color) -> Self {
-        Self::Rgb(value.rgb.red, value.rgb.green, value.rgb.blue)
+    fn from(color: Color) -> Self {
+        color.rgb.into()
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Blended<T> {
+    pub color: T,
+    pub alpha: f32,
+}
+
+impl<T> Blended<T> {
+    pub fn new(color: T, alpha: f32) -> Self {
+        Self { color, alpha }
+    }
+
+    pub fn cast<U>(self) -> Blended<U>
+    where
+        U: From<T>,
+    {
+        Blended {
+            color: self.color.into(),
+            alpha: self.alpha,
+        }
+    }
+}
+
+// TODO: Conflicts with `impl<T> From<T> for T`
+// impl<T, U: From<T>> From<Blended<T>> for Blended<U> {
+//     fn from(value: Blended<T>) -> Self {
+//         Blended {
+//             color: value.color.into(),
+//             alpha: value.alpha,
+//         }
+//     }
+// }
+
+impl<T> From<T> for Blended<T> {
+    fn from(color: T) -> Self {
+        Self { color, alpha: 1.0 }
+    }
+}
+
+pub trait Over<T> {
+    type Output;
+    fn over(&self, under: &T) -> Self::Output;
+}
+
+impl Over<ColorOklab> for Blended<ColorOklab> {
+    type Output = ColorOklab;
+
+    fn over(&self, under: &ColorOklab) -> Self::Output {
+        Lerp::lerp(under, &self.color, self.alpha)
     }
 }

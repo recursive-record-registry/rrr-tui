@@ -23,7 +23,8 @@ use crate::{
         Rectangle,
         ext::nalgebra::{PointExt, PointExtRatatui},
     },
-    layout::{AbsoluteLayout, TaffyNodeData}, tracing_dbg,
+    layout::{AbsoluteLayout, TaffyNodeData},
+    tracing_dbg,
     tui::Event,
 };
 
@@ -441,8 +442,8 @@ impl<'a, 'b: 'a> DrawContext<'a, 'b> {
         }
     }
 
-    pub fn for_each_cell_in_mut(&mut self, area: Rectangle, mut f: impl FnMut(&mut Cell)) {
-        let clipped_area = self.view.intersect(&area);
+    pub fn for_each_cell_in_mut(&mut self, area: Rectangle<i16>, mut f: impl FnMut(&mut Cell)) {
+        let clipped_area = self.view.intersect(&area.clip());
 
         for y in clipped_area.min().y..clipped_area.max().y {
             for x in clipped_area.min().x..clipped_area.max().x {

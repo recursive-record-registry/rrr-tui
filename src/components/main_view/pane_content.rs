@@ -1,6 +1,7 @@
 use core::option::Option::Some;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::time::Duration;
 
 use color_eyre::eyre::Result;
 use ratatui::prelude::*;
@@ -9,6 +10,8 @@ use taffy::{BoxSizing, Display};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::action::{Action, ComponentMessage};
+use crate::animation::BlendAnimationDescriptor;
+use crate::color::{Blended, ColorU8Rgb};
 use crate::component::{Component, ComponentExt, ComponentId, DrawContext, Drawable};
 use crate::components::pane::Pane;
 use crate::components::scroll_pane::ScrollPane;
@@ -82,6 +85,13 @@ impl PaneContent {
                                     ..style
                                 }),
                         )
+                        .with_animation(BlendAnimationDescriptor {
+                            easing_function: easing_function::easings::EaseInOutCubic.into(),
+                            start_delay: Duration::from_secs_f32(0.25),
+                            duration: Duration::from_secs_f32(0.75),
+                        })
+                        .with_rail_color(Blended::new(ColorU8Rgb::new_f32(0.0, 1.0, 0.0), 0.3))
+                        .with_bar_color(Blended::new(ColorU8Rgb::new_f32(0.0, 1.0, 0.0), 1.0))
                         .with_style(|style| taffy::Style {
                             size: taffy::Size {
                                 width: auto(),
@@ -110,6 +120,13 @@ impl PaneContent {
                         ),
                     )),
             )
+            .with_animation(BlendAnimationDescriptor {
+                easing_function: easing_function::easings::EaseInOutCubic.into(),
+                start_delay: Duration::from_secs_f32(0.25),
+                duration: Duration::from_secs_f32(0.75),
+            })
+            .with_rail_color(Blended::new(ColorU8Rgb::new_f32(0.0, 0.0, 1.0), 0.3))
+            .with_bar_color(Blended::new(ColorU8Rgb::new_f32(0.0, 0.0, 1.0), 1.0))
             .with_style(|style| taffy::Style {
                 box_sizing: BoxSizing::BorderBox,
                 size: taffy::Size {

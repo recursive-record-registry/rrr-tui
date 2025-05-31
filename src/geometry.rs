@@ -1,6 +1,5 @@
 use std::{fmt::Debug, ops::Range};
 
-use ext::nalgebra::PointExt;
 use nalgebra::{
     ClosedAddAssign, ClosedSubAssign, Point, SVector, Scalar, SimdPartialOrd, Translation2, point,
     vector, zero,
