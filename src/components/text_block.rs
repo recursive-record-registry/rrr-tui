@@ -148,6 +148,7 @@ impl Drawable for TextBlock {
         let content_rect = self.get_taffy_node_data().absolute_layout().content_rect();
         let lines = self.wrapped_lines(AvailableSpace::Definite(content_rect.extent().x as f32));
 
+        // TODO: Optimize for scrolling panes by only rendering clipped lines.
         for (line, y) in lines.zip(content_rect.min().y..content_rect.max().y) {
             debug_assert!(
                 !line.as_ref().chars().any(|c| c == '\r'),

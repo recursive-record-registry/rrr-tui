@@ -1,8 +1,4 @@
-use std::{
-    num::NonZero,
-    ops::Range,
-    time::Instant,
-};
+use std::{num::NonZero, ops::Range, time::Instant};
 
 use color_eyre::eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, MouseEvent, MouseEventKind};
@@ -66,6 +62,21 @@ impl<T> ScrollPane<T>
 where
     T: DefaultDrawableComponent,
 {
+    /// Currently, in order for the child not to be constrained to the size of the scroll pane, its size must be
+    /// constrained by the size of its content via `max-content` and `min-content`.
+    /// However, it seems that taffy doesn't currently support those values for `size`, `min-size`
+    /// and `max-size` attributes.
+    /// This can be worked around by using the `Display::Grid` display mode on the parent `ScrollBar`,
+    /// which does support `max-content`/`min-content` on the children:
+    ///
+    /// ```rust
+    /// taffy::Style {
+    ///     display: Display::Grid,
+    ///     grid_template_rows: vec![max_content()], // Content unconstained vertically
+    ///     grid_template_columns: vec![percent(1.0)], // Content constrained horizontally to scroll pane's width
+    ///     ..style
+    /// }
+    /// ```
     pub fn new(id: ComponentId, _action_tx: &UnboundedSender<Action>, child: T) -> Self
     where
         Self: Sized,
