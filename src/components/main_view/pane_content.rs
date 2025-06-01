@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use color_eyre::eyre::Result;
 use ratatui::prelude::*;
-use taffy::prelude::{auto, length, max_content, percent};
+use taffy::prelude::{max_content, percent};
 use taffy::{BoxSizing, Display};
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -13,9 +13,7 @@ use crate::action::{Action, ComponentMessage};
 use crate::animation::BlendAnimationDescriptor;
 use crate::color::{Blended, ColorU8Rgb};
 use crate::component::{Component, ComponentExt, ComponentId, DrawContext, Drawable};
-use crate::components::pane::Pane;
 use crate::components::scroll_pane::ScrollPane;
-use crate::components::styled_widget::StyledWidget;
 use crate::components::text_block::TextBlock;
 use crate::layout::TaffyNodeData;
 
