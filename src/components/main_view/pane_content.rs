@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use color_eyre::eyre::Result;
 use ratatui::prelude::*;
-use taffy::prelude::{auto, length, percent};
+use taffy::prelude::{auto, length, max_content, percent};
 use taffy::{BoxSizing, Display};
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -27,9 +27,7 @@ pub struct PaneContent {
     taffy_node_data: TaffyNodeData,
     action_tx: UnboundedSender<Action>,
     main_state: Rc<RefCell<MainState>>,
-    // content: ScrollPane<StyledWidget<Text<'static>>>,
-    // content: ScrollPane<TextBlock>,
-    content: ScrollPane<Pane>,
+    content: ScrollPane<TextBlock>,
 }
 
 impl PaneContent {
@@ -53,72 +51,7 @@ impl PaneContent {
             content: ScrollPane::new(
                 ComponentId::new(),
                 action_tx,
-                Pane::new(ComponentId::new(), action_tx)
-                    .with_style(|style| taffy::Style {
-                        display: Display::Block,
-                        // display: Display::Flex,
-                        // flex_direction: FlexDirection::Column,
-                        size: taffy::Size {
-                            width: auto(),
-                            height: length(21.0), // TODO: compute
-                        },
-                        ..style
-                    })
-                    .with_child(StyledWidget::new(
-                        ComponentId::new(),
-                        action_tx,
-                        ratatui::text::Text::from_iter(
-                            "AA1\nAA2\nAA3\nAA4\nAA5\nAA6\nAA7\nAA8\nAA9".lines(),
-                        ),
-                    ))
-                    .with_child(
-                        ScrollPane::new(
-                            ComponentId::new(),
-                            action_tx,
-                            TextBlock::new(ComponentId::new(), action_tx)
-                                .with_text("BBB1\nBBB2\nBBB3\nBBB4\nBBB5\nBBB6\nBBBL")
-                                .with_style(|style| taffy::Style {
-                                    size: taffy::Size {
-                                        width: length(8.0),
-                                        height: length(7.0), // TODO: compute
-                                    },
-                                    ..style
-                                }),
-                        )
-                        .with_animation(BlendAnimationDescriptor {
-                            easing_function: easing_function::easings::EaseInOutCubic.into(),
-                            start_delay: Duration::from_secs_f32(0.25),
-                            duration: Duration::from_secs_f32(0.75),
-                        })
-                        .with_rail_color(Blended::new(ColorU8Rgb::new_f32(0.0, 1.0, 0.0), 0.3))
-                        .with_bar_color(Blended::new(ColorU8Rgb::new_f32(0.0, 1.0, 0.0), 1.0))
-                        .with_style(|style| taffy::Style {
-                            size: taffy::Size {
-                                width: auto(),
-                                height: length(3.0),
-                            },
-                            // size: taffy::Size {
-                            //     width: percent(1.0),
-                            //     height: length(17.0),
-                            // },
-                            // max_size: taffy::Size {
-                            //     width: percent(1.0),
-                            //     height: length(17.0),
-                            // },
-                            // min_size: taffy::Size {
-                            //     width: auto(),
-                            //     height: length(3.0),
-                            // },
-                            ..style
-                        }),
-                    )
-                    .with_child(StyledWidget::new(
-                        ComponentId::new(),
-                        action_tx,
-                        ratatui::text::Text::from_iter(
-                            "CCC1\nCCC2\nCCC3\nCCC4\nCCC5\nCCC6\nCCC7\nCCC8\nCCC9".lines(),
-                        ),
-                    )),
+                TextBlock::new(ComponentId::new(), action_tx),
             )
             .with_animation(BlendAnimationDescriptor {
                 easing_function: easing_function::easings::EaseInOutCubic.into(),
@@ -135,6 +68,10 @@ impl PaneContent {
                 },
                 max_size: percent(1.0),
                 min_size: percent(1.0),
+                // Unconstrain the height of the child component.
+                display: Display::Grid,
+                grid_template_rows: vec![max_content()],
+                grid_template_columns: vec![percent(1.0)],
                 ..style
             }),
             main_state: main_state.clone(),
@@ -150,7 +87,7 @@ impl Component for PaneContent {
                 read_result: Some(read_result),
             } => {
                 let data_string = String::from_utf8_lossy(&read_result.data);
-                // self.content.child.set_text(data_string.into_owned().into());
+                self.content.child.set_text(data_string.into_owned().into());
                 Ok(Some(Action::Render))
             }
             _ => Ok(None),

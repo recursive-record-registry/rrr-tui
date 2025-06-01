@@ -368,10 +368,7 @@ impl Drawable for MainView {
             merged: symbols::line::HORIZONTAL,
         };
 
-        let area = self
-            .taffy_node_data
-            .absolute_layout()
-            .content_rect();
+        let area = self.taffy_node_data.absolute_layout().content_rect();
 
         // Draw the background of the entire main window.
         context.set_style(area, TextColor::default());
