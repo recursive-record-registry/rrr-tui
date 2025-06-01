@@ -345,6 +345,9 @@ where
             .chain(scrollbar_layout.rail_range_bottom.clone())
         {
             if let Some(cell) = context.get_cell_mut([scrollbar_layout.rail_x, y]) {
+                cell.fg = color_rail
+                    .over(&ColorU8Rgb::try_from(cell.fg).unwrap_or_default().into())
+                    .into();
                 cell.bg = color_rail
                     .over(&ColorU8Rgb::try_from(cell.bg).unwrap_or_default().into())
                     .into();
@@ -376,7 +379,9 @@ where
         // Fill in between top and bottom cells.
         for y in scrollbar_layout.bar_start_ceil..scrollbar_layout.bar_end_floor {
             if let Some(cell) = context.get_cell_mut([scrollbar_layout.rail_x, y]) {
-                cell.set_char(' ');
+                cell.fg = color_bar
+                    .over(&ColorU8Rgb::try_from(cell.fg).unwrap_or_default().into())
+                    .into();
                 cell.bg = color_bar
                     .over(&ColorU8Rgb::try_from(cell.bg).unwrap_or_default().into())
                     .into();
