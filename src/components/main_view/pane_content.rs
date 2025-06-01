@@ -56,8 +56,8 @@ impl PaneContent {
                 start_delay: Duration::from_secs_f32(0.25),
                 duration: Duration::from_secs_f32(0.75),
             })
-            .with_rail_color(Blended::new(ColorU8Rgb::new_f32(0.0, 0.0, 1.0), 0.3))
-            .with_bar_color(Blended::new(ColorU8Rgb::new_f32(0.0, 0.0, 1.0), 1.0))
+            .with_rail_color(Blended::new(ColorU8Rgb::new_f32(1.0, 1.0, 1.0), 0.25))
+            .with_bar_color(Blended::new(ColorU8Rgb::new_f32(1.0, 1.0, 1.0), 1.0))
             .with_style(|style| taffy::Style {
                 box_sizing: BoxSizing::BorderBox,
                 size: taffy::Size {
