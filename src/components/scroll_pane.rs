@@ -328,15 +328,15 @@ where
         };
 
         let now = context.now();
-        let alpha_rail = animation.apply(now, &self.color_rail.alpha, &0.0);
-        let alpha_bar = animation.apply(now, &self.color_bar.alpha, &0.0);
+        let alpha_rail = animation.apply(now, &self.color_rail.alpha(), &0.0);
+        let alpha_bar = animation.apply(now, &self.color_bar.alpha(), &0.0);
 
         if alpha_rail <= 0.0 && alpha_bar <= 0.0 {
             return Ok(());
         }
 
-        let color_rail = Blended::new(self.color_rail.color, alpha_rail);
-        let color_bar = Blended::new(self.color_bar.color, alpha_bar);
+        let color_rail = Blended::new(self.color_rail.color(), alpha_rail);
+        let color_bar = Blended::new(self.color_bar.color(), alpha_bar);
 
         // Draw rail.
         for y in scrollbar_layout
