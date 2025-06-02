@@ -10,7 +10,7 @@ use rrr::record::{HashedRecordKey, RecordKey, RecordName, RecordReadVersionSucce
 use rrr::registry::Registry;
 use rrr::utils::fd_lock::ReadLock;
 use rrr::utils::serde::BytesOrAscii;
-use taffy::Dimension;
+use taffy::prelude::{auto, length, line, min_content, percent, zero};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{Instrument, debug, info_span};
 
@@ -56,28 +56,23 @@ impl PaneOpen {
             taffy_node_data: TaffyNodeData::new(taffy::Style {
                 display: taffy::Display::Grid,
                 size: taffy::Size {
-                    width: Dimension::percent(1.0),
-                    height: Dimension::auto(),
-                    // height: Dimension::length(3.0),
+                    width: percent(1.0),
+                    height: auto(),
                 },
                 min_size: taffy::Size {
-                    width: Dimension::length(0.0),
-                    height: Dimension::length(1.0),
+                    width: length(0.0),
+                    height: length(1.0),
                 },
-                grid_template_columns: vec![
-                    taffy::prelude::min_content(),
-                    taffy::prelude::auto(),
-                    taffy::prelude::length(18.0),
-                ],
-                grid_template_rows: vec![taffy::prelude::auto(), taffy::prelude::auto()],
+                grid_template_columns: vec![min_content(), auto(), length(18.0)],
+                grid_template_rows: vec![auto(), auto()],
                 gap: taffy::Size {
-                    width: taffy::prelude::length(1.0),
-                    ..taffy::Size::zero()
+                    width: length(1.0),
+                    ..zero()
                 },
                 // This padding is for the pane's title.
                 padding: taffy::Rect {
-                    top: taffy::prelude::length(1.0),
-                    ..taffy::Rect::zero()
+                    top: length(1.0),
+                    ..zero()
                 },
                 ..Default::default()
             }),
@@ -89,21 +84,21 @@ impl PaneOpen {
                 "Record Name".into(),
             )
             .with_style(|style| taffy::Style {
-                grid_row: taffy::prelude::line(1),
-                grid_column: taffy::prelude::line(1),
+                grid_row: line(1),
+                grid_column: line(1),
                 ..style
             }),
             record_name_field: InputField::new(ComponentId::new(), action_tx).with_style(|style| {
                 taffy::Style {
-                    grid_row: taffy::prelude::line(1),
-                    grid_column: taffy::prelude::line(2),
+                    grid_row: line(1),
+                    grid_column: line(2),
                     ..style
                 }
             }),
             encoding_label: StyledWidget::new(ComponentId::new(), action_tx, "Encoding".into())
                 .with_style(|style| taffy::Style {
-                    grid_row: taffy::prelude::line(2),
-                    grid_column: taffy::prelude::line(1),
+                    grid_row: line(2),
+                    grid_column: line(1),
                     ..style
                 }),
             encoding_radio_array: RadioArray::new(
@@ -114,8 +109,8 @@ impl PaneOpen {
                 Direction::Horizontal,
             )
             .with_style(|style| taffy::Style {
-                grid_row: taffy::prelude::line(2),
-                grid_column: taffy::prelude::line(2),
+                grid_row: line(2),
+                grid_column: line(2),
                 ..style
             }),
             status_spinner: OpenStatus::new(
@@ -124,8 +119,8 @@ impl PaneOpen {
                 SpinnerContent::default(),
             )
             .with_style(|style| taffy::Style {
-                grid_row: taffy::prelude::line(1),
-                grid_column: taffy::prelude::line(3),
+                grid_row: line(1),
+                grid_column: line(3),
                 ..style
             }),
             button: Button::new(ComponentId::new(), action_tx, "Search".into())
@@ -134,8 +129,8 @@ impl PaneOpen {
                 .with_text_color_focused(TextColor::default().bg(ColorOklch::new(0.4, 0.0, 0.0)))
                 .with_text_color_pressed(TextColor::default().bg(ColorOklch::new(0.3, 0.0, 0.0)))
                 .with_style(|style| taffy::Style {
-                    grid_row: taffy::prelude::line(2),
-                    grid_column: taffy::prelude::line(3),
+                    grid_row: line(2),
+                    grid_column: line(3),
                     ..style
                 }),
         })
@@ -359,41 +354,12 @@ impl Drawable for PaneOpen {
     {
         let area = self.taffy_node_data.absolute_layout().padding_rect();
         let (area_title, _) = MainView::pane_areas(area, extra_args.title_offset_x);
-        // tracing::trace!(
-        //     ?area,
-        //     ?area_title,
-        //     c = ?self.absolute_layout().content_rect()
-        // );
 
         context.draw_widget(&Span::raw("Open Sub-Record [Enter]"), area_title);
-
-        // let layout_bottom_lines = Layout::default()
-        //     .direction(Direction::Horizontal)
-        //     .spacing(1)
-        //     .constraints([
-        //         Constraint::Length(11),
-        //         Constraint::Fill(1),
-        //         Constraint::Length(18),
-        //     ]);
-        // let [area_record_name, area_encoding] = Layout::default()
-        //     .direction(Direction::Vertical)
-        //     .constraints([Constraint::Length(1), Constraint::Length(1)])
-        //     .areas(area_content);
-        // let [area_record_name_label, area_record_name_field, area_status] =
-        //     layout_bottom_lines.areas(area_record_name);
-        // let [area_encoding_label, area_encoding_field, area_button] =
-        //     layout_bottom_lines.areas(area_encoding);
-
         context.draw_component_with(&self.record_name_label, ())?;
-        // context
-        //     .frame()
-        //     .render_widget(Span::raw("Record Name"), area_record_name_label);
         context.draw_component_with(&self.record_name_field, ())?;
         context.draw_component_with(&self.status_spinner, ())?;
         context.draw_component_with(&self.encoding_label, ())?;
-        // context
-        //     .frame()
-        //     .render_widget(Span::raw("Encoding"), area_encoding_label);
         context.draw_component_with(&self.encoding_radio_array, ())?;
         context.draw_component_with(&self.button, ())?;
 

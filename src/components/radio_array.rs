@@ -2,6 +2,7 @@ use std::{fmt::Debug, ops::ControlFlow};
 
 use color_eyre::Result;
 use ratatui::layout::Direction;
+use taffy::prelude::{length, zero};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
@@ -52,8 +53,8 @@ where
                     Direction::Vertical => taffy::FlexDirection::Column,
                 },
                 gap: taffy::Size {
-                    width: taffy::prelude::length(2.0),
-                    height: taffy::prelude::zero(),
+                    width: length(2.0),
+                    height: zero(),
                 },
                 ..Default::default()
             }),
