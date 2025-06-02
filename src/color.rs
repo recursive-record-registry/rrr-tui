@@ -369,12 +369,16 @@ impl From<Color> for ratatui::style::Color {
 
 #[derive(Debug, Clone, Copy)]
 pub struct Blended<T> {
-    pub color: T,
-    pub alpha: f32,
+    color: T,
+    alpha: f32,
 }
 
 impl<T> Blended<T> {
     pub fn new(color: T, alpha: f32) -> Self {
+        debug_assert!(
+            (0.0..=1.0).contains(&alpha),
+            "the alpha must be in the range [0, 1], but its actual value is {alpha}"
+        );
         Self { color, alpha }
     }
 
@@ -386,6 +390,17 @@ impl<T> Blended<T> {
             color: self.color.into(),
             alpha: self.alpha,
         }
+    }
+
+    pub fn color(&self) -> T
+    where
+        T: Copy,
+    {
+        self.color
+    }
+
+    pub fn alpha(&self) -> f32 {
+        self.alpha
     }
 }
 
