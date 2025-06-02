@@ -23,7 +23,6 @@ use super::{MainState, MainView};
 pub struct PaneContent {
     id: ComponentId,
     taffy_node_data: TaffyNodeData,
-    action_tx: UnboundedSender<Action>,
     main_state: Rc<RefCell<MainState>>,
     content: ScrollPane<TextBlock>,
 }
@@ -45,7 +44,6 @@ impl PaneContent {
                 },
                 ..Default::default()
             }),
-            action_tx: action_tx.clone(),
             content: ScrollPane::new(
                 ComponentId::new(),
                 action_tx,

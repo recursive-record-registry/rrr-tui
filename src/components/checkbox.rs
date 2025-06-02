@@ -2,8 +2,8 @@ use std::borrow::Cow;
 
 use color_eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
+use nalgebra::{SVector, vector};
 use ratatui::{
-    layout::Size,
     style::{Style, Stylize},
     text::{Line, Span},
 };
@@ -12,7 +12,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::{
     action::{Action, ComponentMessage},
     component::{Component, ComponentExt, ComponentId, DrawContext, Drawable, HandleEventSuccess},
-    geometry::ext::ratatui::SizeExt,
+    geometry::ext::IntoTaffy,
     layout::TaffyNodeData,
     tui::Event,
 };
@@ -57,8 +57,8 @@ impl Checkbox {
         }
     }
 
-    pub fn size(&self) -> Size {
-        Size::new(
+    pub fn size(&self) -> SVector<u16, 2> {
+        vector![
             1 + Line::from_iter([
                 Span::raw(if self.checked {
                     self.string_checked.as_ref()
@@ -69,7 +69,7 @@ impl Checkbox {
             ])
             .width() as u16,
             1,
-        )
+        ]
     }
 }
 
@@ -119,7 +119,7 @@ impl Component for Checkbox {
         _known_dimensions: taffy::Size<Option<f32>>,
         _available_space: taffy::Size<taffy::AvailableSpace>,
     ) -> taffy::Size<f32> {
-        self.size().into_taffy()
+        self.size().into_taffy_cast()
     }
 }
 

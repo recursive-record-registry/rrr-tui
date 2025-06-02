@@ -3,17 +3,17 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     action::Action,
-    component::{
-        Component, ComponentId, DefaultDrawableComponent, Drawable,
-    },
+    component::{Component, ComponentId, DefaultDrawableComponent, Drawable},
     layout::TaffyNodeData,
 };
 
+#[expect(unused)]
 enum ScrollAxis {
     Horizontal,
     Vertical,
 }
 
+#[expect(unused)]
 enum ScrollDirection {
     Backward,
     Forward,
@@ -28,6 +28,7 @@ pub struct Pane {
 }
 
 impl Pane {
+    #[expect(unused)]
     pub fn new(id: ComponentId, _action_tx: &UnboundedSender<Action>) -> Self
     where
         Self: Sized,
@@ -39,6 +40,7 @@ impl Pane {
         }
     }
 
+    #[expect(unused)]
     pub fn with_child(mut self, child: impl DefaultDrawableComponent + 'static) -> Self {
         self.children.push(Box::new(child));
         self

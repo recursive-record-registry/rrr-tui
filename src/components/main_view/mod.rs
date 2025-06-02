@@ -109,7 +109,7 @@ struct OpenedRecord {
 }
 
 #[derive(Debug, Clone)]
-struct MainState {
+pub struct MainState {
     registry: Arc<Registry<ReadLock>>,
     opened_record: Option<OpenedRecord>,
 }

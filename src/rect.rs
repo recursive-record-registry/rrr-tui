@@ -28,6 +28,7 @@ impl PlaneAlignment {
         }
     }
 
+    #[expect(unused)]
     pub fn vertical(vertical_alignment: LineAlignment) -> Self {
         Self {
             x: Default::default(),
@@ -37,6 +38,7 @@ impl PlaneAlignment {
 }
 
 pub trait RectExt {
+    #[expect(unused)]
     fn without_padding(self, padding: Padding) -> Self;
     fn align(self, rect_size: Size, alignment: PlaneAlignment) -> Self;
 }

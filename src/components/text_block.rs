@@ -10,14 +10,12 @@ use crate::{
     component::{Component, ComponentExt, ComponentId, DrawContext, Drawable},
     geometry::Rectangle,
     layout::TaffyNodeData,
-    tracing_dbg,
 };
 
 #[derive(Debug)]
 pub struct TextBlock {
     id: ComponentId,
     taffy_node_data: TaffyNodeData,
-    // pub unwrapped_lines: Vec<Line<'static>>,
     text: Cow<'static, str>,
 }
 
@@ -34,19 +32,13 @@ impl TextBlock {
         }
     }
 
+    #[expect(unused)]
     pub fn with_text(self, text: impl Into<Cow<'static, str>>) -> Self {
         Self {
             text: text.into(),
             ..self
         }
     }
-
-    // pub fn with_lines(self, unwrapped_lines: Vec<Line<'static>>) -> Self {
-    //     Self {
-    //         unwrapped_lines,
-    //         ..self
-    //     }
-    // }
 
     pub fn wrapped_lines_width(&self, available_space_width: AvailableSpace) -> usize {
         match available_space_width {
@@ -82,6 +74,7 @@ impl TextBlock {
         )
     }
 
+    #[expect(unused)]
     pub fn text(&self) -> &str {
         &self.text
     }
@@ -123,11 +116,10 @@ impl Component for TextBlock {
         //     height = std::cmp::min(height, available_height as i32);
         // }
 
-        tracing_dbg!(&available_space);
-        tracing_dbg!(taffy::Size {
+        taffy::Size {
             width: width as f32,
             height: height as f32,
-        })
+        }
     }
 }
 

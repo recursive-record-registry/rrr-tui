@@ -5,84 +5,160 @@ use nalgebra::{
     vector, zero,
 };
 use num_traits::{SaturatingSub, Zero};
-use ratatui::layout::{Offset, Position, Rect};
+use ratatui::layout::Rect;
 use simba::scalar::SubsetOf;
 
-use crate::component::ComponentId;
-
 pub mod ext {
-    pub mod ratatui {
-        use nalgebra::{SVector, vector};
+    use ::nalgebra::Scalar;
+    use simba::scalar::SupersetOf;
 
-        pub trait SizeExt {
-            fn into_taffy<T: From<u16>>(self) -> taffy::Size<T>;
-            fn into_nalgebra(self) -> SVector<u16, 2>;
+    pub trait IntoRatatui<T> {
+        type Output;
+        fn into_ratatui_cast(self) -> Self::Output;
+    }
+
+    pub trait IntoTaffy<T> {
+        type Output<U>;
+        fn into_taffy_cast<U: SupersetOf<T>>(self) -> Self::Output<U>;
+    }
+
+    pub trait IntoNalgebra<T> {
+        type Output<U: Scalar>;
+        fn into_nalgebra_cast<U: SupersetOf<T> + Scalar>(self) -> Self::Output<U>;
+    }
+
+    pub trait IntoRatatuiExt<T>: IntoRatatui<T> {
+        fn into_ratatui(self) -> Self::Output;
+    }
+
+    impl<T, U> IntoRatatuiExt<T> for U
+    where
+        U: IntoRatatui<T>,
+    {
+        fn into_ratatui(self) -> Self::Output {
+            self.into_ratatui_cast()
         }
+    }
 
-        impl SizeExt for ratatui::layout::Size {
-            fn into_taffy<T: From<u16>>(self) -> ::taffy::Size<T> {
-                ::taffy::Size {
-                    width: self.width.into(),
-                    height: self.height.into(),
+    pub trait IntoTaffyExt<T>: IntoTaffy<T> {
+        #[expect(unused)]
+        fn into_taffy(self) -> Self::Output<T>;
+    }
+
+    impl<T, U> IntoTaffyExt<T> for U
+    where
+        U: IntoTaffy<T>,
+        T: SupersetOf<T>,
+    {
+        fn into_taffy(self) -> Self::Output<T> {
+            self.into_taffy_cast()
+        }
+    }
+
+    pub trait IntoNalgebraExt<T>: IntoNalgebra<T>
+    where
+        T: Scalar,
+    {
+        fn into_nalgebra(self) -> Self::Output<T>;
+    }
+
+    impl<T, U> IntoNalgebraExt<T> for U
+    where
+        T: Scalar + SupersetOf<T>,
+        U: IntoNalgebra<T>,
+    {
+        fn into_nalgebra(self) -> Self::Output<T> {
+            self.into_nalgebra_cast()
+        }
+    }
+
+    pub mod ratatui {
+        use nalgebra::{Point, SVector, Scalar, convert, point, vector};
+        use simba::scalar::SupersetOf;
+
+        use super::{IntoNalgebra, IntoTaffy};
+
+        impl IntoTaffy<u16> for ::ratatui::layout::Size {
+            type Output<U> = ::taffy::Size<U>;
+
+            fn into_taffy_cast<U: SupersetOf<u16>>(self) -> Self::Output<U> {
+                Self::Output {
+                    width: convert(self.width),
+                    height: convert(self.height),
                 }
             }
+        }
 
-            fn into_nalgebra(self) -> SVector<u16, 2> {
-                vector![self.width, self.height]
+        impl IntoNalgebra<u16> for ::ratatui::layout::Size {
+            type Output<U: Scalar> = SVector<U, 2>;
+
+            fn into_nalgebra_cast<U: SupersetOf<u16> + Scalar>(self) -> Self::Output<U> {
+                vector![convert(self.width), convert(self.height)]
+            }
+        }
+
+        impl IntoTaffy<u16> for ::ratatui::layout::Position {
+            type Output<U> = ::taffy::Point<U>;
+
+            fn into_taffy_cast<U: SupersetOf<u16>>(self) -> Self::Output<U> {
+                Self::Output {
+                    x: convert(self.x),
+                    y: convert(self.y),
+                }
+            }
+        }
+
+        impl IntoNalgebra<u16> for ::ratatui::layout::Position {
+            type Output<U: Scalar> = Point<U, 2>;
+
+            fn into_nalgebra_cast<U: SupersetOf<u16> + Scalar>(self) -> Self::Output<U> {
+                point![convert(self.x), convert(self.y)]
+            }
+        }
+
+        impl IntoNalgebra<i32> for ::ratatui::layout::Offset {
+            type Output<U: Scalar> = SVector<U, 2>;
+
+            fn into_nalgebra_cast<U: SupersetOf<i32> + Scalar>(self) -> Self::Output<U> {
+                vector![convert(self.x), convert(self.y)]
             }
         }
     }
 
     pub mod taffy {
-        use nalgebra::{SVector, vector};
+        use nalgebra::{SVector, Scalar, convert, vector};
+        use simba::scalar::{SubsetOf, SupersetOf};
 
-        pub trait SizeExtNalgebra<T> {
-            fn into_nalgebra(self) -> SVector<T, 2>;
-        }
+        use super::{IntoNalgebra, IntoRatatui};
 
-        pub trait SizeExt<T> {
-            fn into_ratatui(self) -> ::ratatui::layout::Size;
-        }
+        impl<T> IntoNalgebra<T> for ::taffy::Size<T> {
+            type Output<U: Scalar> = SVector<T, 2>;
 
-        impl<T> SizeExt<T> for ::taffy::Size<T>
-        where
-            T: Into<u16>,
-        {
-            fn into_ratatui(self) -> ::ratatui::layout::Size {
-                ::ratatui::layout::Size {
-                    width: self.width.into(),
-                    height: self.height.into(),
-                }
-            }
-        }
-
-        impl<T> SizeExtNalgebra<T> for ::taffy::Size<T> {
-            fn into_nalgebra(self) -> SVector<T, 2> {
+            fn into_nalgebra_cast<U: SupersetOf<T> + Scalar>(self) -> Self::Output<U> {
                 vector![self.width, self.height]
             }
         }
 
-        pub trait RoundSizeExt<T> {
-            fn rounded_into_ratatui(self) -> ::ratatui::layout::Size;
-        }
-
-        impl<T> RoundSizeExt<T> for ::taffy::Size<T>
+        impl<T> IntoRatatui<T> for ::taffy::Size<T>
         where
-            T: num_traits::NumCast,
+            T: SubsetOf<u16>,
         {
-            fn rounded_into_ratatui(self) -> ::ratatui::layout::Size {
-                ::ratatui::layout::Size {
-                    width: num_traits::cast(self.width).unwrap(),
-                    height: num_traits::cast(self.height).unwrap(),
+            type Output = ratatui::layout::Size;
+
+            fn into_ratatui_cast(self) -> Self::Output {
+                Self::Output {
+                    width: convert(self.width),
+                    height: convert(self.height),
                 }
             }
         }
     }
 
     pub mod nalgebra {
-        use nalgebra::{Point, SVector, Scalar};
-        use ratatui::layout::{Position, Size};
-        use simba::scalar::SubsetOf;
+        use nalgebra::{Point, SVector, Scalar, convert};
+        use simba::scalar::{SubsetOf, SupersetOf};
+
+        use super::{IntoRatatui, IntoTaffy};
 
         pub trait PointExt<T> {
             type TryCastResult<R>
@@ -112,60 +188,61 @@ pub mod ext {
             }
         }
 
-        pub trait PointExtRatatui<T> {
-            fn into_ratatui(self) -> T;
-        }
+        impl<T> IntoRatatui<T> for Point<T, 2>
+        where
+            T: SubsetOf<u16> + Scalar + Copy,
+        {
+            type Output = ::ratatui::layout::Position;
 
-        impl PointExtRatatui<Position> for Point<u16, 2> {
-            fn into_ratatui(self) -> Position {
-                Position {
-                    x: self.x,
-                    y: self.y,
+            fn into_ratatui_cast(self) -> Self::Output {
+                Self::Output {
+                    x: convert(self.x),
+                    y: convert(self.y),
                 }
             }
         }
 
-        impl PointExtRatatui<Size> for SVector<u16, 2> {
-            fn into_ratatui(self) -> Size {
-                Size {
-                    width: self.x,
-                    height: self.y,
+        impl<T> IntoRatatui<T> for SVector<T, 2>
+        where
+            T: SubsetOf<u16> + Scalar + Copy,
+        {
+            type Output = ::ratatui::layout::Size;
+
+            fn into_ratatui_cast(self) -> Self::Output {
+                Self::Output {
+                    width: convert(self.x),
+                    height: convert(self.y),
                 }
             }
         }
-    }
 
-    pub use taffy::*;
-}
+        impl<T> IntoTaffy<T> for Point<T, 2>
+        where
+            T: Scalar + Copy,
+        {
+            type Output<U> = ::taffy::Point<U>;
 
-impl From<ComponentId> for taffy::NodeId {
-    fn from(value: ComponentId) -> Self {
-        taffy::NodeId::new(value.0)
-    }
-}
+            fn into_taffy_cast<U: SupersetOf<T>>(self) -> Self::Output<U> {
+                Self::Output::<U> {
+                    x: convert(self.x),
+                    y: convert(self.y),
+                }
+            }
+        }
 
-impl From<taffy::NodeId> for ComponentId {
-    fn from(value: taffy::NodeId) -> Self {
-        ComponentId(value.into())
-    }
-}
+        impl<T> IntoTaffy<T> for SVector<T, 2>
+        where
+            T: Scalar + Copy,
+        {
+            type Output<U> = ::taffy::Size<U>;
 
-pub trait IntoNalgebra {
-    type Output;
-    fn into_nalgebra(self) -> Self::Output;
-}
-
-impl IntoNalgebra for Position {
-    type Output = Point<u16, 2>;
-    fn into_nalgebra(self) -> Self::Output {
-        point![self.x, self.y]
-    }
-}
-
-impl IntoNalgebra for Offset {
-    type Output = SVector<i32, 2>;
-    fn into_nalgebra(self) -> Self::Output {
-        vector![self.x, self.y]
+            fn into_taffy_cast<U: SupersetOf<T>>(self) -> Self::Output<U> {
+                Self::Output::<U> {
+                    width: convert(self.x),
+                    height: convert(self.y),
+                }
+            }
+        }
     }
 }
 
