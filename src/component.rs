@@ -10,7 +10,7 @@ use nalgebra::{Point, SVector};
 use ratatui::{
     Frame,
     buffer::{Buffer, Cell},
-    layout::{Position, Size},
+    layout::{Position, Rect, Size},
     style::Style,
     widgets::{StatefulWidgetRef, WidgetRef},
 };
@@ -24,7 +24,6 @@ use crate::{
         ext::{IntoRatatuiExt, nalgebra::PointExt},
     },
     layout::{AbsoluteLayout, TaffyNodeData},
-    tracing_dbg,
     tui::Event,
 };
 
@@ -467,27 +466,13 @@ impl<'a, 'b: 'a> DrawContext<'a, 'b> {
         }
     }
 
-    pub fn draw_widget<W: WidgetRef + Debug>(
+    pub fn draw_widget_inner(
         &mut self,
-        widget: &W,
         area: impl Into<Rectangle<i16>>,
-    ) {
-        self.draw_widget_debug(widget, area, false);
-    }
-
-    pub fn draw_widget_debug<W: WidgetRef + Debug>(
-        &mut self,
-        widget: &W,
-        area: impl Into<Rectangle<i16>>,
-        debug: bool,
+        render_into: impl FnOnce(Rect, &mut Buffer),
     ) {
         let area = area.into().clip();
         let clipped_area = area.intersect(&self.view);
-
-        // if debug {
-        //     trace_dbg!(area);
-        //     trace_dbg!(clipped_area);
-        // }
 
         if clipped_area.is_empty() {
             // The entire widget is clipped. Nothing to render.
@@ -497,7 +482,7 @@ impl<'a, 'b: 'a> DrawContext<'a, 'b> {
         if area.min() == clipped_area.min() {
             // The top left corner of the widget is not clipped,
             // therefore the widget can be rendered the simple way.
-            widget.render_ref(clipped_area.into(), self.frame.buffer_mut());
+            (render_into)(clipped_area.into(), self.frame.buffer_mut());
             return;
         }
 
@@ -508,10 +493,6 @@ impl<'a, 'b: 'a> DrawContext<'a, 'b> {
         let unused_margin = clipped_area.min() - area.min();
         let draw_area =
             Rectangle::from_extent(Point::origin(), unused_margin + clipped_area.extent());
-        if debug {
-            tracing_dbg!(unused_margin);
-            tracing_dbg!(draw_area);
-        }
         let mut tmp_buffer = Buffer::empty(draw_area.into());
         tmp_buffer.blit(
             self.frame.buffer_mut(),
@@ -526,7 +507,7 @@ impl<'a, 'b: 'a> DrawContext<'a, 'b> {
                 .unwrap()
                 .into_ratatui(),
         );
-        widget.render_ref(draw_area.into(), &mut tmp_buffer);
+        (render_into)(draw_area.into(), &mut tmp_buffer);
         self.frame.buffer_mut().blit(
             &tmp_buffer,
             Point {
@@ -542,13 +523,25 @@ impl<'a, 'b: 'a> DrawContext<'a, 'b> {
         );
     }
 
+    pub fn draw_widget<W: WidgetRef + Debug>(
+        &mut self,
+        widget: &W,
+        area: impl Into<Rectangle<i16>>,
+    ) {
+        self.draw_widget_inner(area, |clipped_area, buffer| {
+            widget.render_ref(clipped_area, buffer)
+        });
+    }
+
     pub fn draw_stateful_widget<W: StatefulWidgetRef>(
         &mut self,
-        widget: W,
-        area_relative: Rectangle,
+        widget: &W,
+        area: impl Into<Rectangle<i16>>,
         state: &mut W::State,
     ) {
-        todo!();
+        self.draw_widget_inner(area, |clipped_area, buffer| {
+            widget.render_ref(clipped_area, buffer, state)
+        });
     }
 
     fn draw_component_impl<C: Component + ?Sized>(
