@@ -1,12 +1,21 @@
-# rrr-tui-3
+# rrr-tui
 
-[![CI](https://github.com//rrr-tui-3/workflows/CI/badge.svg)](https://github.com//rrr-tui-3/actions)
+[![CI](https://github.com/recursive-record-registry/rrr-tui/workflows/CI/badge.svg)](https://github.com/recursive-record-registry/rrr-tui/actions)
 
-RRR TUI
+A terminal user interface (TUI) browser for the Recursive Record Registry (RRR) data format.
 
 ## TODO
-* [ ] Record opening
-    * [ ] Disable form elements while a record is being searched for
-* [ ] Record content viewer
-    * [x] Word wrapping
-    * [ ] Scrollable pane component
+### v0.1.0
+* Migrate layout computation to Taffy
+* Make panes resizeable
+    * Top row vertically
+    * Tree and Overview panes horizontally
+* Implement tree pane
+* Implement overview pane
+* Implement hexadecimal byte string record search
+
+### Backlog
+* Record opening
+    * Disable form elements while a record is being searched for
+* Syntax highlighting
+* Implement tree persistence
