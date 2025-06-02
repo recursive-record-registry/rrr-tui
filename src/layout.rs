@@ -8,12 +8,24 @@ use taffy::{
 };
 
 use crate::{
-    component::{self, DefaultDrawableComponent, TreeControlFlow},
+    component::{self, ComponentId, DefaultDrawableComponent, TreeControlFlow},
     geometry::{
-        IntoNalgebra, Rectangle,
-        ext::SizeExtNalgebra,
+        Rectangle,
+        ext::{IntoNalgebra, IntoNalgebraExt},
     },
 };
+
+impl From<ComponentId> for taffy::NodeId {
+    fn from(value: ComponentId) -> Self {
+        taffy::NodeId::new(value.0)
+    }
+}
+
+impl From<taffy::NodeId> for ComponentId {
+    fn from(value: taffy::NodeId) -> Self {
+        ComponentId(value.into())
+    }
+}
 
 pub trait LayoutExt {
     fn content_rect(self) -> Rectangle<i16>;
@@ -477,11 +489,7 @@ pub fn compute_absolute_layout(
         root_component,
         &PreorderData {
             overflow_clip_area: Rectangle::from(frame_area).cast::<i16>(),
-            absolute_position_offset: frame_area
-                .as_position()
-                .into_nalgebra()
-                .coords
-                .cast::<i16>(),
+            absolute_position_offset: frame_area.as_position().into_nalgebra_cast::<i16>().coords,
             parent_recomputed: false,
         },
         &mut |component, preorder_data| {
@@ -646,80 +654,4 @@ pub fn trace_tree_custom(root: &dyn DefaultDrawableComponent) {
     );
 
     tracing::trace!("\n{buffer_string}");
-}
-
-/// Based on `taffy::print_tree`.
-#[cfg(feature = "debug")]
-pub fn trace_tree(tree: &impl PrintTree, root: taffy::NodeId) {
-    use std::fmt::Write;
-
-    let mut buffer_string = "\nTREE\n".to_string();
-    print_node(tree, root, false, String::new(), &mut buffer_string).unwrap();
-
-    /// Recursive function that prints each node in the tree
-    fn print_node(
-        tree: &impl PrintTree,
-        node_id: taffy::NodeId,
-        has_sibling: bool,
-        lines_string: String,
-        buffer_string: &mut String,
-    ) -> std::fmt::Result {
-        let layout = &tree.get_final_layout(node_id);
-        let display2: &'static str = tree.get_debug_label(node_id);
-        let num_children = tree.child_count(node_id);
-
-        let fork_string = if has_sibling {
-            "├──"
-        } else {
-            "└──"
-        };
-        #[cfg(feature = "debug_layout_content_size")]
-        writeln!(
-            buffer_string,
-            "{lines}{fork} {display} [x: {x} y: {y} w: {width} h: {height} content_w: {content_width} content_h: {content_height} border: l:{bl} r:{br} t:{bt} b:{bb}, padding: l:{pl} r:{pr} t:{pt} b:{pb}] ({key:?})",
-            lines = lines_string,
-            fork = fork_string,
-            display = display2,
-            x = layout.location.x,
-            y = layout.location.y,
-            width = layout.size.width,
-            height = layout.size.height,
-            content_width = layout.content_size.width,
-            content_height = layout.content_size.height,
-            bl = layout.border.left,
-            br = layout.border.right,
-            bt = layout.border.top,
-            bb = layout.border.bottom,
-            pl = layout.padding.left,
-            pr = layout.padding.right,
-            pt = layout.padding.top,
-            pb = layout.padding.bottom,
-            key = node_id,
-        )?;
-        #[cfg(not(feature = "debug_layout_content_size"))]
-        writeln!(
-            buffer_string,
-            "{lines}{fork} {display} [x: {x} y: {y} width: {width} height: {height}] ({key:?})",
-            lines = lines_string,
-            fork = fork_string,
-            display = display2,
-            x = layout.location.x,
-            y = layout.location.y,
-            width = layout.size.width,
-            height = layout.size.height,
-            key = node_id,
-        )?;
-        let bar = if has_sibling { "│   " } else { "    " };
-        let new_string = lines_string + bar;
-
-        // Recurse into children
-        for (index, child) in tree.child_ids(node_id).enumerate() {
-            let has_sibling = index < num_children - 1;
-            print_node(tree, child, has_sibling, new_string.clone(), buffer_string)?;
-        }
-
-        Ok(())
-    }
-
-    tracing::trace!("{}", buffer_string);
 }

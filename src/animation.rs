@@ -76,9 +76,8 @@ impl BlendAnimation {
 
 #[derive(Debug)]
 pub enum RectAnimation {
-    Static {
-        color: TextColor,
-    },
+    #[expect(unused)]
+    Static { color: TextColor },
     ProgressIndeterminate {
         period: Duration,
         highlight: TextColor,

@@ -18,7 +18,6 @@ default = []
 opentelemetry = ["dep:opentelemetry", "opentelemetry-otlp", "tracing-opentelemetry", "opentelemetry_sdk"]
 tracy = ["dep:tracing-tracy"]
 debug = []
-debug_layout_content_size = []
 
 [dependencies]
 # Feature opentelemetry

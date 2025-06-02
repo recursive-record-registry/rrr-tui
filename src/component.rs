@@ -21,7 +21,7 @@ use crate::{
     action::{Action, ComponentMessage},
     geometry::{
         Rectangle,
-        ext::nalgebra::{PointExt, PointExtRatatui},
+        ext::{IntoRatatuiExt, nalgebra::PointExt},
     },
     layout::{AbsoluteLayout, TaffyNodeData},
     tracing_dbg,

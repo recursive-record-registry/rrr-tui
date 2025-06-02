@@ -38,6 +38,7 @@ impl<'a> SpinnerContent<'a> {
         Self { animation, ..self }
     }
 
+    #[expect(unused)]
     pub fn with_color(self, color: TextColor) -> Self {
         Self { color, ..self }
     }
