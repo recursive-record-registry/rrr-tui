@@ -150,7 +150,7 @@ impl Drawable for TextBlock {
 
             let span = Span::raw(line);
             let rect = Rectangle::from_extent([content_rect.min().x, y], [span.width() as i16, 1]);
-            context.draw_widget_debug(&span, rect, span.content.as_ref().contains("BBB"));
+            context.draw_widget(&span, rect);
         }
 
         Ok(())
