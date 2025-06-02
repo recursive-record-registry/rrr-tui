@@ -7,7 +7,7 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     action::Action,
-    component::{Component, ComponentExt, ComponentId, Drawable},
+    component::{Component, ComponentExt, ComponentId, DrawContext, Drawable},
     geometry::Rectangle,
     layout::TaffyNodeData,
     tracing_dbg,
@@ -137,19 +137,20 @@ impl Drawable for TextBlock {
     where
         Self: 'a;
 
-    fn draw<'a>(
-        &self,
-        context: &mut crate::component::DrawContext,
-        (): Self::Args<'a>,
-    ) -> Result<()>
+    fn draw<'a>(&self, context: &mut DrawContext, (): Self::Args<'a>) -> Result<()>
     where
         Self: 'a,
     {
         let content_rect = self.get_taffy_node_data().absolute_layout().content_rect();
         let lines = self.wrapped_lines(AvailableSpace::Definite(content_rect.extent().x as f32));
+        let view = context.view().cast::<i16>();
 
-        // TODO: Optimize for scrolling panes by only rendering clipped lines.
-        for (line, y) in lines.zip(content_rect.min().y..content_rect.max().y) {
+        for (line, y) in lines
+            .zip(content_rect.min().y..content_rect.max().y)
+            // Only render lines that are within the clipped view.
+            .skip(usize::try_from(view.min().y - content_rect.min().y).unwrap_or_default())
+            .take(usize::try_from(view.max().y - view.min().y).unwrap_or_default())
+        {
             debug_assert!(
                 !line.as_ref().chars().any(|c| c == '\r'),
                 "Carriage returns mess with style rendering."
