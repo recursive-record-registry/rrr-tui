@@ -429,6 +429,10 @@ impl<'a, 'b: 'a> DrawContext<'a, 'b> {
         self.elapsed_time
     }
 
+    pub fn view(&self) -> Rectangle<u16> {
+        self.view
+    }
+
     pub fn get_cell_mut(&mut self, position: impl Into<Point<i16, 2>>) -> Option<&mut Cell> {
         let position = position
             .into()
