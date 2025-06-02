@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use color_eyre::eyre::Result;
 use ratatui::prelude::*;
-use taffy::prelude::{max_content, percent};
+use taffy::prelude::{length, max_content, percent};
 use taffy::{BoxSizing, Display};
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -40,7 +40,7 @@ impl PaneContent {
                 box_sizing: BoxSizing::BorderBox,
                 // This padding is for the pane's title.
                 padding: taffy::Rect {
-                    top: taffy::prelude::length(1.0),
+                    top: length(1.0),
                     ..taffy::Rect::zero()
                 },
                 ..Default::default()
@@ -128,7 +128,7 @@ impl Drawable for PaneContent {
         Self: 'a,
     {
         let area = self.taffy_node_data.absolute_layout().padding_rect();
-        let (area_title, area_content) = MainView::pane_areas(area, extra_args.title_offset_x);
+        let (area_title, _) = MainView::pane_areas(area, extra_args.title_offset_x);
 
         context.draw_widget(&Span::raw("Record [C]ontent"), area_title);
         context.draw_component_with(&self.content, ())?;
