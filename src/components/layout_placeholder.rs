@@ -1,7 +1,5 @@
-use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
-    action::Action,
     component::{Component, ComponentId},
     layout::TaffyNodeData,
 };
@@ -13,7 +11,7 @@ pub struct LayoutPlaceholder {
 }
 
 impl LayoutPlaceholder {
-    pub fn new(id: ComponentId, _action_tx: &UnboundedSender<Action>) -> Self
+    pub fn new(id: ComponentId) -> Self
     where
         Self: Sized,
     {

@@ -22,7 +22,7 @@ use crate::layout::TaffyNodeData;
 pub struct PaneContent {
     id: ComponentId,
     taffy_node_data: TaffyNodeData,
-    main_state: Rc<RefCell<MainState>>,
+    // main_state: Rc<RefCell<MainState>>,
     content: ScrollPane<TextBlock>,
 }
 
@@ -30,7 +30,7 @@ impl PaneContent {
     pub fn new(
         id: ComponentId,
         action_tx: &UnboundedSender<Action>,
-        main_state: &Rc<RefCell<MainState>>,
+        _main_state: &Rc<RefCell<MainState>>,
     ) -> Result<Self> {
         Ok(Self {
             id,
@@ -69,7 +69,7 @@ impl PaneContent {
                 grid_template_columns: vec![percent(1.0)],
                 ..style
             }),
-            main_state: main_state.clone(),
+            // main_state: main_state.clone(),
         })
     }
 }
@@ -111,7 +111,7 @@ impl Component for PaneContent {
 }
 
 pub struct PaneContentArgs {
-    pub title_offset_x: u16,
+    pub title_offset_x: i16,
 }
 
 impl Drawable for PaneContent {

@@ -7,9 +7,12 @@ use std::sync::Arc;
 use color_eyre::eyre::Result;
 use nalgebra::vector;
 use panes::content::{PaneContent, PaneContentArgs};
+use panes::metadata::PaneMetadata;
 use panes::open::{PaneOpen, PaneOpenArgs};
+use panes::overview::PaneOverview;
+use panes::tree::PaneTree;
 use ratatui::prelude::*;
-use ratatui::widgets::{Table, WidgetRef};
+use ratatui::widgets::WidgetRef;
 use rrr::record::{HashedRecordKey, RECORD_NAME_ROOT, RecordReadVersionSuccess, SuccessionNonce};
 use rrr::registry::Registry;
 use rrr::utils::fd_lock::ReadLock;
@@ -137,8 +140,14 @@ pub struct MainView {
     id: ComponentId,
     taffy_node_data: TaffyNodeData,
     args: Arc<Args>,
+    placeholder_header: LayoutPlaceholder,
     placeholder_top: LayoutPlaceholder,
     placeholder_footer: LayoutPlaceholder,
+    placeholder_splitter_vertical_0: LayoutPlaceholder,
+    placeholder_splitter_vertical_1: LayoutPlaceholder,
+    pane_tree: PaneTree,
+    pane_metadata: PaneMetadata,
+    pane_overview: PaneOverview,
     pane_content: PaneContent,
     pane_open: PaneOpen,
     state: Rc<RefCell<MainState>>,
@@ -172,11 +181,11 @@ impl MainView {
             taffy_node_data: TaffyNodeData::new(taffy::Style {
                 display: taffy::Display::Grid,
                 grid_template_columns: vec![
-                    length(16.0),
+                    length(12.0),
                     length(1.0), // Divider
                     minmax(zero(), fr(1.0)),
                     length(1.0), // Divider
-                    length(16.0),
+                    length(12.0),
                 ],
                 grid_template_rows: vec![
                     length(1.0),             // Header
@@ -192,14 +201,102 @@ impl MainView {
                 ..Default::default()
             }),
             args: args.clone(),
-            placeholder_top: LayoutPlaceholder::new(ComponentId::new(), action_tx).with_style(
-                |style| taffy::Style {
+            placeholder_header: LayoutPlaceholder::new(ComponentId::new()).with_style(|style| {
+                taffy::Style {
                     grid_column: taffy::Line {
                         start: line(1),
                         end: line(6),
                     },
                     grid_row: taffy::Line {
                         start: line(1),
+                        end: line(2),
+                    },
+                    ..style
+                }
+            }),
+            placeholder_top: LayoutPlaceholder::new(ComponentId::new()).with_style(|style| {
+                taffy::Style {
+                    grid_column: taffy::Line {
+                        start: line(1),
+                        end: line(6),
+                    },
+                    grid_row: taffy::Line {
+                        start: line(2),
+                        end: line(3),
+                    },
+                    ..style
+                }
+            }),
+            pane_tree: PaneTree::new(ComponentId::new(), action_tx, &state)?.with_style(|style| {
+                taffy::Style {
+                    grid_column: taffy::Line {
+                        start: line(1),
+                        end: line(2),
+                    },
+                    grid_row: taffy::Line {
+                        start: line(2),
+                        end: line(3),
+                    },
+                    ..style
+                }
+            }),
+            placeholder_splitter_vertical_0: LayoutPlaceholder::new(ComponentId::new()).with_style(
+                |style| taffy::Style {
+                    grid_column: taffy::Line {
+                        start: line(2),
+                        end: line(3),
+                    },
+                    grid_row: taffy::Line {
+                        start: line(2),
+                        end: line(3),
+                    },
+                    // Extend the region to overlap the title of the content pane.
+                    margin: taffy::Rect {
+                        bottom: length(-1.0),
+                        ..zero()
+                    },
+                    ..style
+                },
+            ),
+            pane_metadata: PaneMetadata::new(ComponentId::new(), action_tx, &state)?.with_style(
+                |style| taffy::Style {
+                    grid_column: taffy::Line {
+                        start: line(3),
+                        end: line(4),
+                    },
+                    grid_row: taffy::Line {
+                        start: line(2),
+                        end: line(3),
+                    },
+                    ..style
+                },
+            ),
+            placeholder_splitter_vertical_1: LayoutPlaceholder::new(ComponentId::new()).with_style(
+                |style| taffy::Style {
+                    grid_column: taffy::Line {
+                        start: line(4),
+                        end: line(5),
+                    },
+                    grid_row: taffy::Line {
+                        start: line(2),
+                        end: line(3),
+                    },
+                    // Extend the region to overlap the title of the content pane.
+                    margin: taffy::Rect {
+                        bottom: length(-1.0),
+                        ..zero()
+                    },
+                    ..style
+                },
+            ),
+            pane_overview: PaneOverview::new(ComponentId::new(), action_tx, &state)?.with_style(
+                |style| taffy::Style {
+                    grid_column: taffy::Line {
+                        start: line(-1),
+                        end: line(-2),
+                    },
+                    grid_row: taffy::Line {
+                        start: line(2),
                         end: line(3),
                     },
                     ..style
@@ -223,24 +320,23 @@ impl MainView {
                 grid_row: line(4),
                 ..style
             }),
-            placeholder_footer: LayoutPlaceholder::new(ComponentId::new(), action_tx).with_style(
-                |style| taffy::Style {
+            placeholder_footer: LayoutPlaceholder::new(ComponentId::new()).with_style(|style| {
+                taffy::Style {
                     grid_column: taffy::Line {
                         start: line(1),
                         end: line(6),
                     },
                     grid_row: line(5),
                     ..style
-                },
-            ),
+                }
+            }),
             state,
         })
     }
 
-    fn pane_areas(area: Rectangle<i16>, title_offset_x: u16) -> (Rectangle<i16>, Rectangle<i16>) {
-        let title =
-            Rectangle::from_minmax(area.min() + vector![title_offset_x as i16, 0], area.max())
-                .with_height(1);
+    fn pane_areas(area: Rectangle<i16>, title_offset_x: i16) -> (Rectangle<i16>, Rectangle<i16>) {
+        let title = Rectangle::from_minmax(area.min() + vector![title_offset_x, 0], area.max())
+            .with_height(1);
         let content = Rectangle::from_minmax(area.min() + vector![0, 1], area.max());
 
         (title, content)
@@ -251,39 +347,6 @@ impl MainView {
             &Span::raw(format!("RRR TUI v{}", *PROJECT_VERSION)),
             area_header,
         );
-        Ok(())
-    }
-
-    fn draw_pane_tree(&self, context: &mut DrawContext, area: Rectangle<i16>) -> Result<()> {
-        let (area_title, _area_content) = Self::pane_areas(area, 0);
-        context.draw_widget(&Span::raw("[T]ree"), area_title);
-        Ok(())
-    }
-
-    fn draw_pane_metadata(&self, context: &mut DrawContext, area: Rectangle<i16>) -> Result<()> {
-        let (area_title, area_content) = Self::pane_areas(area, 0);
-
-        if let Some(opened_record) = self.state.borrow().opened_record.as_ref() {
-            let metadata_table = Table::new(
-                opened_record
-                    .record
-                    .metadata
-                    .iter_with_semantic_keys()
-                    .map(|(key, value)| crate::cbor::record_metadata_to_row(key, value)),
-                [Constraint::Length(16), Constraint::Fill(1)],
-            );
-
-            context.draw_widget(&metadata_table, area_content);
-        }
-
-        context.draw_widget(&Span::raw("Record [M]etadata"), area_title);
-
-        Ok(())
-    }
-
-    fn draw_pane_overview(&self, context: &mut DrawContext, area: Rectangle<i16>) -> Result<()> {
-        let (area_title, _area_content) = Self::pane_areas(area, 0);
-        context.draw_widget(&Span::raw("[O]verview"), area_title);
         Ok(())
     }
 }
@@ -311,7 +374,13 @@ impl Component for MainView {
 
     fn get_children(&self) -> Vec<&dyn Component> {
         vec![
+            &self.placeholder_header,
             &self.placeholder_top,
+            &self.placeholder_splitter_vertical_0,
+            &self.placeholder_splitter_vertical_1,
+            &self.pane_tree,
+            &self.pane_metadata,
+            &self.pane_overview,
             &self.pane_content,
             &self.pane_open,
             &self.placeholder_footer,
@@ -320,7 +389,13 @@ impl Component for MainView {
 
     fn get_children_mut(&mut self) -> Vec<&mut dyn Component> {
         vec![
+            &mut self.placeholder_header,
             &mut self.placeholder_top,
+            &mut self.placeholder_splitter_vertical_0,
+            &mut self.placeholder_splitter_vertical_1,
+            &mut self.pane_tree,
+            &mut self.pane_metadata,
+            &mut self.pane_overview,
             &mut self.pane_content,
             &mut self.pane_open,
             &mut self.placeholder_footer,
@@ -372,66 +447,54 @@ impl Drawable for MainView {
         // Draw the background of the entire main window.
         context.set_style(area, TextColor::default());
 
-        let [
-            area_header,
-            area_top,
-            area_content,
-            area_bottom,
-            area_footer,
-        ] = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(1),
-                Constraint::Length(7),
-                Constraint::Fill(1),
-                Constraint::Length(3),
-                Constraint::Length(1),
-            ])
-            .areas(area.clip().into());
-        let layout_top = Layout::default()
-            .direction(Direction::Horizontal)
-            .spacing(1)
-            .constraints([
-                Constraint::Length(8),
-                Constraint::Fill(1),
-                Constraint::Length(16),
-            ]);
-        let [area_tree, area_metadata, area_overview] = layout_top.areas(area_top);
-        let [_, area_top_spacer_0, area_top_spacer_1, _] = layout_top.spacers(area_top);
-
-        context.draw_widget(&SPACER_HORIZONTAL, Rectangle::from(area_top).cast());
-        context.draw_widget(&SPACER_HORIZONTAL, Rectangle::from(area_content).cast());
-        context.draw_widget(&SPACER_HORIZONTAL, Rectangle::from(area_bottom).cast());
-        context.draw_widget(&SPACER_HORIZONTAL, Rectangle::from(area_footer).cast());
         context.draw_widget(
-            &SPACER_VERTICAL_FORKED,
-            Rectangle::from(area_top_spacer_0)
-                .with_height(area_top_spacer_0.height + 1)
-                .cast::<i16>(),
+            &SPACER_HORIZONTAL,
+            self.placeholder_top.absolute_layout().padding_rect(),
+        );
+        context.draw_widget(
+            &SPACER_HORIZONTAL,
+            self.pane_content.absolute_layout().padding_rect(),
+        );
+        context.draw_widget(
+            &SPACER_HORIZONTAL,
+            self.pane_open.absolute_layout().padding_rect(),
+        );
+        context.draw_widget(
+            &SPACER_HORIZONTAL,
+            self.placeholder_footer.absolute_layout().padding_rect(),
         );
         context.draw_widget(
             &SPACER_VERTICAL_FORKED,
-            Rectangle::from(area_top_spacer_1)
-                .with_height(area_top_spacer_1.height + 1)
-                .cast::<i16>(),
+            self.placeholder_splitter_vertical_0
+                .absolute_layout()
+                .padding_rect(),
+        );
+        context.draw_widget(
+            &SPACER_VERTICAL_FORKED,
+            self.placeholder_splitter_vertical_1
+                .absolute_layout()
+                .padding_rect(),
         );
 
-        self.draw_pane_tree(context, Rectangle::from(area_tree).cast())?;
-        self.draw_pane_metadata(context, Rectangle::from(area_metadata).cast())?;
-        self.draw_pane_overview(context, Rectangle::from(area_overview).cast())?;
+        context.draw_component(&self.pane_tree)?;
+        context.draw_component(&self.pane_metadata)?;
+        context.draw_component(&self.pane_overview)?;
         context.draw_component_with(
             &self.pane_content,
             PaneContentArgs {
-                title_offset_x: area_metadata.x,
+                title_offset_x: self.pane_metadata.absolute_layout().padding_rect().min().x,
             },
         )?;
         context.draw_component_with(
             &self.pane_open,
             PaneOpenArgs {
-                title_offset_x: area_metadata.x,
+                title_offset_x: self.pane_metadata.absolute_layout().padding_rect().min().x,
             },
         )?;
-        self.draw_header(context, Rectangle::from(area_header).cast())?;
+        self.draw_header(
+            context,
+            self.placeholder_header.absolute_layout().padding_rect(),
+        )?;
 
         /* Debug Oklch color space
         for y in area.y..(area.y + area.height) {

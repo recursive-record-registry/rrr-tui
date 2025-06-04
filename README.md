@@ -6,7 +6,6 @@ A terminal user interface (TUI) browser for the Recursive Record Registry (RRR) 
 
 ## TODO
 ### v0.1.0
-* Migrate layout computation to Taffy
 * Make panes resizeable
     * Top row vertically
     * Tree and Overview panes horizontally
@@ -15,6 +14,7 @@ A terminal user interface (TUI) browser for the Recursive Record Registry (RRR) 
 * Implement hexadecimal byte string record search
 
 ### Backlog
+* Consider using taffy's `DetailedGridInfo` for drawing the main view panes' edges
 * Record opening
     * Disable form elements while a record is being searched for
 * Syntax highlighting
