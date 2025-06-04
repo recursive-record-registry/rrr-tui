@@ -6,8 +6,8 @@ use std::sync::Arc;
 
 use color_eyre::eyre::Result;
 use nalgebra::vector;
-use pane_content::{PaneContent, PaneContentArgs};
-use pane_open::{PaneOpen, PaneOpenArgs};
+use panes::content::{PaneContent, PaneContentArgs};
+use panes::open::{PaneOpen, PaneOpenArgs};
 use ratatui::prelude::*;
 use ratatui::widgets::{Table, WidgetRef};
 use rrr::record::{HashedRecordKey, RECORD_NAME_ROOT, RecordReadVersionSuccess, SuccessionNonce};
@@ -27,8 +27,7 @@ use crate::layout::TaffyNodeData;
 
 use super::layout_placeholder::LayoutPlaceholder;
 
-pub mod pane_content;
-pub mod pane_open;
+pub mod panes;
 
 #[derive(Clone, Debug)]
 pub struct LineSpacer {
@@ -372,36 +371,6 @@ impl Drawable for MainView {
 
         // Draw the background of the entire main window.
         context.set_style(area, TextColor::default());
-
-        // let lines = [
-        //     "aasdfsdadfasdhadgfhlafjdghskldfghjkdslsdfsdadfasdhadgfhlafjdghskldfghjkdsl",
-        //     "asdfahjdskflahs",
-        //     "asdf",
-        //     "asdffdhfjaskfldhsaklf",
-        //     "asdfasdfsdadfasdhadgfhlafjdghskldfghjkdsasdfsdadfasdhadgfhlafjdghskldfghjkdsll",
-        //     "asdf",
-        //     "asdf",
-        // ];
-
-        // for (line, y) in lines.into_iter().zip(area.y..) {
-        //     let span = Span::raw(line);
-        //     let rect = Rect {
-        //         x: area.x,
-        //         y,
-        //         width: span.width() as u16,
-        //         height: 1,
-        //     };
-        //     context.frame().render_widget(span, rect);
-        //     context.frame().buffer_mut().set_style(
-        //         rect,
-        //         TextColor {
-        //             fg: ColorU8Rgb::new_f32(1.0, 0.0, 0.0).into(),
-        //             bg: ColorU8Rgb::new_f32(0.0, 0.0, 1.0).into(),
-        //         },
-        //     );
-        // }
-
-        // return Ok(());
 
         let [
             area_header,
