@@ -22,14 +22,13 @@ use crate::component::{
 };
 use crate::components::button::Button;
 use crate::components::input_field::InputField;
+use crate::components::main_view::{Encoding, MainState, MainView};
 use crate::components::open_status::{OpenStatus, SpinnerContent};
 use crate::components::radio_array::RadioArray;
 use crate::components::styled_widget::StyledWidget;
 use crate::error;
 use crate::layout::TaffyNodeData;
 use crate::tui::Event;
-
-use super::{Encoding, MainState, MainView};
 
 #[derive(Debug)]
 pub struct PaneOpen {

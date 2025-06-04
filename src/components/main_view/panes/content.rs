@@ -13,11 +13,10 @@ use crate::action::{Action, ComponentMessage};
 use crate::animation::BlendAnimationDescriptor;
 use crate::color::{Blended, ColorU8Rgb};
 use crate::component::{Component, ComponentExt, ComponentId, DrawContext, Drawable};
+use crate::components::main_view::{MainState, MainView};
 use crate::components::scroll_pane::ScrollPane;
 use crate::components::text_block::TextBlock;
 use crate::layout::TaffyNodeData;
-
-use super::{MainState, MainView};
 
 #[derive(Debug)]
 pub struct PaneContent {
