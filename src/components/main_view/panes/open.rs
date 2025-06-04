@@ -338,7 +338,7 @@ impl Component for PaneOpen {
 }
 
 pub struct PaneOpenArgs {
-    pub title_offset_x: u16,
+    pub title_offset_x: i16,
 }
 
 impl Drawable for PaneOpen {
