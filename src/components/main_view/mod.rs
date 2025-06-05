@@ -189,7 +189,7 @@ impl MainView {
                 ],
                 grid_template_rows: vec![
                     length(1.0),             // Header
-                    length(7.0),             // Top
+                    length(10.0),            // Top
                     minmax(zero(), fr(1.0)), // Content
                     min_content(),           // Bottom
                     length(1.0),             // Footer

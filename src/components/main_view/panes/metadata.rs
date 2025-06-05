@@ -1,10 +1,12 @@
 use core::option::Option::Some;
+use std::borrow::Cow;
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use color_eyre::eyre::Result;
 use ratatui::prelude::*;
-use ratatui::widgets::Table;
+use ratatui::widgets::{Row, Table};
+use rrr::crypto::encryption::EncryptionAlgorithm;
 use taffy::BoxSizing;
 use taffy::prelude::length;
 use tokio::sync::mpsc::UnboundedSender;
@@ -87,11 +89,52 @@ impl Drawable for PaneMetadata {
 
         if let Some(opened_record) = self.main_state.borrow().opened_record.as_ref() {
             let metadata_table = Table::new(
-                opened_record
-                    .record
-                    .metadata
-                    .iter_with_semantic_keys()
-                    .map(|(key, value)| crate::cbor::record_metadata_to_row(key, value)),
+                itertools::chain![
+                    opened_record
+                        .record
+                        .metadata
+                        .iter_with_semantic_keys()
+                        .map(|(key, value)| crate::cbor::record_metadata_to_row(key, value)),
+                    [
+                        Row::new(vec![
+                            Cow::Borrowed("Record Nonce"),
+                            format!("{}", opened_record.record.record_nonce.0).into(),
+                        ]),
+                        Row::new(vec![
+                            Cow::Borrowed("Content Size"),
+                            format!("{} bytes", opened_record.record.data.len()).into(),
+                        ]),
+                        Row::new(vec![
+                            Cow::Borrowed("Segments"),
+                            format!("{}", opened_record.record.segments.len()).into(),
+                        ]),
+                    ],
+                    opened_record.record.segments.iter().enumerate().flat_map(
+                        |(mut index, segment)| {
+                            index += 1;
+                            [
+                                Row::new(vec![
+                                    format!("Segment #{} File", index),
+                                    format!("{}", segment.fragment_file_name),
+                                ]),
+                                Row::new(vec![
+                                    format!("Segment #{} Encryption", index),
+                                    format!(
+                                        "{}",
+                                        segment
+                                            .fragment_encryption_algorithm
+                                            .map(
+                                                |encryption_algorithm| match encryption_algorithm {
+                                                    EncryptionAlgorithm::Aes256Gcm => "AES-256-GCM",
+                                                }
+                                            )
+                                            .unwrap_or("None")
+                                    ),
+                                ]),
+                            ]
+                        }
+                    ),
+                ],
                 [Constraint::Length(16), Constraint::Fill(1)],
             );
 
