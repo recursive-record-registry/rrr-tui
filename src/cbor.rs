@@ -21,7 +21,10 @@ fn line<'a>(ty: impl AsRef<str>, content: impl Into<Line<'a>>) -> Line<'a> {
     l
 }
 
-pub fn record_metadata_to_row<'a>(key: RecordMetadataKey<'a>, value: &'a cbor::Value) -> Row<'a> {
+pub fn record_metadata_to_row<'a>(
+    key: RecordMetadataKey<'a>,
+    value: &'a cbor::Value,
+) -> Row<'static> {
     match key {
         RecordMetadataKey::Id(id) => {
             Row::new([Line::raw(id.to_string()), cbor_value_to_line(value)])
@@ -32,7 +35,7 @@ pub fn record_metadata_to_row<'a>(key: RecordMetadataKey<'a>, value: &'a cbor::V
     }
 }
 
-pub fn cbor_value_to_line(value: &cbor::Value) -> Line {
+pub fn cbor_value_to_line(value: &cbor::Value) -> Line<'static> {
     if let Some(integer) = value.as_integer() {
         return line("integer", i128::from(integer).to_string());
     }
@@ -46,7 +49,7 @@ pub fn cbor_value_to_line(value: &cbor::Value) -> Line {
     }
 
     if let Some(text) = value.as_text() {
-        return line("text", text);
+        return line("text", text.to_string());
     }
 
     if let Some(boolean) = value.as_bool() {
