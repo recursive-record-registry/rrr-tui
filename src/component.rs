@@ -6,7 +6,7 @@ use std::{
 };
 
 use color_eyre::Result;
-use nalgebra::{Point, SVector};
+use nalgebra::{Point, SVector, zero};
 use ratatui::{
     Frame,
     buffer::{Buffer, Cell},
@@ -471,8 +471,8 @@ impl<'a, 'b: 'a> DrawContext<'a, 'b> {
         area: impl Into<Rectangle<i16>>,
         render_into: impl FnOnce(Rect, &mut Buffer),
     ) {
-        let area = area.into().clip();
-        let clipped_area = area.intersect(&self.view);
+        let area: Rectangle<i16> = area.into();
+        let clipped_area = area.intersect(&self.view.cast::<i16>());
 
         if clipped_area.is_empty() {
             // The entire widget is clipped. Nothing to render.
@@ -482,7 +482,7 @@ impl<'a, 'b: 'a> DrawContext<'a, 'b> {
         if area.min() == clipped_area.min() {
             // The top left corner of the widget is not clipped,
             // therefore the widget can be rendered the simple way.
-            (render_into)(clipped_area.into(), self.frame.buffer_mut());
+            (render_into)(clipped_area.clip().into(), self.frame.buffer_mut());
             return;
         }
 
@@ -490,9 +490,18 @@ impl<'a, 'b: 'a> DrawContext<'a, 'b> {
         // The widget needs to be rendered into an intermediate buffer, to not overwrite existing
         // data of the buffer in the clipped region.
 
-        let unused_margin = clipped_area.min() - area.min();
-        let draw_area =
-            Rectangle::from_extent(Point::origin(), unused_margin + clipped_area.extent());
+        let unused_margin = (clipped_area.min() - area.min())
+            .sup(&zero())
+            .try_cast::<u16>()
+            .expect("`sup` ensures non-negative values");
+        let draw_area = Rectangle::from_extent(
+            Point::origin(),
+            unused_margin
+                + clipped_area
+                    .extent()
+                    .try_cast::<u16>()
+                    .expect("the extent is always non-negative"),
+        );
         let mut tmp_buffer = Buffer::empty(draw_area.into());
         tmp_buffer.blit(
             self.frame.buffer_mut(),
