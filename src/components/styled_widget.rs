@@ -2,9 +2,12 @@ use std::fmt::Debug;
 
 use color_eyre::eyre::Result;
 use ratatui::{
+    buffer::Buffer,
+    layout::{Constraint, Rect},
     text::{Line, Span, Text},
-    widgets::WidgetRef,
+    widgets::{Row, Table, WidgetRef},
 };
+use taffy::AvailableSpace;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
@@ -88,7 +91,6 @@ where
     {
         let area = self.absolute_layout().content_rect();
         context.draw_widget(&self.widget, area);
-        // self.widget.render_ref(area, context.frame().buffer_mut());
         Ok(())
     }
 }
@@ -125,15 +127,38 @@ impl MeasurableWidget for Text<'_> {
         _known_dimensions: taffy::Size<Option<f32>>,
         _available_space: taffy::Size<taffy::AvailableSpace>,
     ) -> taffy::Size<f32> {
-        tracing::trace!(
-            ?_known_dimensions,
-            ?_available_space,
-            width = self.width(),
-            height = self.height()
-        );
         taffy::Size {
             width: self.width() as f32,
             height: self.height() as f32,
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct TableProxy<'a> {
+    pub rows: Vec<Row<'a>>,
+    pub constraints: Vec<Constraint>,
+}
+
+impl WidgetRef for TableProxy<'_> {
+    fn render_ref(&self, area: Rect, buf: &mut Buffer) {
+        Table::new(self.rows.iter().cloned(), self.constraints.iter().cloned())
+            .render_ref(area, buf);
+    }
+}
+
+impl MeasurableWidget for TableProxy<'_> {
+    fn measure(
+        &self,
+        known_dimensions: taffy::Size<Option<f32>>,
+        available_space: taffy::Size<taffy::AvailableSpace>,
+    ) -> taffy::Size<f32> {
+        taffy::Size {
+            width: match available_space.width {
+                AvailableSpace::Definite(space) => space,
+                AvailableSpace::MaxContent | AvailableSpace::MinContent => 0.0,
+            },
+            height: self.rows.len() as f32,
         }
     }
 }

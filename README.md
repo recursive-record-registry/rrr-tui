@@ -14,6 +14,8 @@ A terminal user interface (TUI) browser for the Recursive Record Registry (RRR) 
 * Implement hexadecimal byte string record search
 
 ### Backlog
+* Add a record title metadata field to the RRR format
+* Horizontal scrolling in metadata pane
 * Consider using taffy's `DetailedGridInfo` for drawing the main view panes' edges
 * Record opening
     * Disable form elements while a record is being searched for
