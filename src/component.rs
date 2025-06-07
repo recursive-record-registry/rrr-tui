@@ -493,14 +493,13 @@ impl<'a, 'b: 'a> DrawContext<'a, 'b> {
             return;
         }
 
-        if area.min() == clipped_area.min() {
-            // The top left corner of the widget is not clipped,
-            // therefore the widget can be rendered the simple way.
+        if area == clipped_area {
+            // The widget is not clipped. Render directly into the target buffer.
             (render_into)(clipped_area.clip().into(), self.frame.buffer_mut());
             return;
         }
 
-        // At this point, the top left corner of the widget is clipped.
+        // At this point, the widget is clipped on one or more of its sides.
         // The widget needs to be rendered into an intermediate buffer, to not overwrite existing
         // data of the buffer in the clipped region.
 
@@ -510,11 +509,9 @@ impl<'a, 'b: 'a> DrawContext<'a, 'b> {
             .expect("`sup` ensures non-negative values");
         let draw_area = Rectangle::from_extent(
             Point::origin(),
-            unused_margin
-                + clipped_area
-                    .extent()
-                    .try_cast::<u16>()
-                    .expect("the extent is always non-negative"),
+            area.extent()
+                .try_cast::<u16>()
+                .expect("extent is always non-negative"),
         );
         let mut tmp_buffer = Buffer::empty(draw_area.into());
         tmp_buffer.blit(
