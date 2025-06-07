@@ -246,7 +246,7 @@ pub mod ext {
     }
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub struct Rectangle<T: Scalar + Zero = u16> {
     // inclusive
     min: Point<T, 2>,
