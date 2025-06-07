@@ -67,7 +67,6 @@ mod id {
     pub struct ComponentIdPath(pub Vec<ComponentId>);
 
     impl ComponentIdPath {
-        #[expect(unused)]
         pub fn find_deepest_available_component<'a>(
             &self,
             root: &'a dyn super::Component,

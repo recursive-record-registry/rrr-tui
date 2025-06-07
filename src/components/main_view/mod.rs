@@ -5,18 +5,16 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use color_eyre::eyre::Result;
-use nalgebra::{SVector, vector};
+use nalgebra::SVector;
 use panes::content::PaneContent;
 use panes::metadata::PaneMetadata;
 use panes::open::PaneOpen;
 use panes::overview::PaneOverview;
 use panes::tree::PaneTree;
 use ratatui::prelude::*;
-use ratatui::widgets::WidgetRef;
 use rrr::record::{HashedRecordKey, RECORD_NAME_ROOT, RecordReadVersionSuccess, SuccessionNonce};
 use rrr::registry::Registry;
 use rrr::utils::fd_lock::ReadLock;
-use taffy::Dimension;
 use taffy::prelude::{fr, length, line, min_content, minmax, percent, zero};
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -29,7 +27,7 @@ use crate::component::{
 use crate::env::PROJECT_VERSION;
 use crate::geometry::Rectangle;
 use crate::layout::TaffyNodeData;
-use crate::widgets::line_spacer::{LineSpacerOld, LineType, RectSpacer};
+use crate::widgets::line_spacer::{LineType, RectSpacer};
 
 use super::layout_placeholder::LayoutPlaceholder;
 

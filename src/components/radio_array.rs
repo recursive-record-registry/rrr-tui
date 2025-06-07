@@ -21,7 +21,7 @@ where
     taffy_node_data: TaffyNodeData,
     items: Vec<(T, Checkbox)>,
     checked_index: usize,
-    layout_direction: Direction,
+    // layout_direction: Direction,
 }
 
 impl<T> RadioArray<T>
@@ -73,7 +73,7 @@ where
                 })
                 .collect(),
             checked_index,
-            layout_direction,
+            // layout_direction,
         }
     }
 
