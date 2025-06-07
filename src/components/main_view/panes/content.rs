@@ -4,8 +4,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use color_eyre::eyre::Result;
-use ratatui::prelude::*;
-use taffy::prelude::{length, max_content, percent};
+use taffy::prelude::{max_content, percent};
 use taffy::{BoxSizing, Display};
 use tokio::sync::mpsc::UnboundedSender;
 

@@ -1,5 +1,3 @@
-use std::io::Read;
-
 use ratatui::{
     buffer::Buffer,
     layout::{Direction, Position, Rect},
@@ -332,62 +330,5 @@ impl WidgetRef for RectSpacer {
             },
             buffer,
         );
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct LineSpacerOld {
-    pub direction: Direction,
-    pub begin: &'static str,
-    pub inner: &'static str,
-    pub end: &'static str,
-    pub merged: &'static str,
-}
-
-impl WidgetRef for LineSpacerOld {
-    fn render_ref(&self, area: Rect, buf: &mut Buffer)
-    where
-        Self: Sized,
-    {
-        //debug_assert!(
-        //    (self.direction == Direction::Horizontal || area.width == 1)
-        //        && (self.direction == Direction::Vertical || area.height == 1),
-        //    "Invalid render area: direction = {direction:?}, area = {area:?}",
-        //    direction = self.direction
-        //);
-
-        let start_position = area.as_position();
-
-        if area.width == 0 || area.height == 0 {
-            return;
-        }
-
-        if area.width <= 1 && area.height <= 1 {
-            buf[start_position].set_symbol(self.merged);
-            return;
-        }
-
-        buf[start_position].set_symbol(self.begin);
-
-        match self.direction {
-            Direction::Horizontal => {
-                let end_position: Position =
-                    (start_position.x + area.width - 1, start_position.y).into();
-                buf[end_position].set_symbol(self.end);
-                for x in (start_position.x + 1)..end_position.x {
-                    let position = (x, start_position.y);
-                    buf[position].set_symbol(self.inner);
-                }
-            }
-            Direction::Vertical => {
-                let end_position: Position =
-                    (start_position.x, start_position.y + area.height - 1).into();
-                buf[end_position].set_symbol(self.end);
-                for y in (start_position.y + 1)..end_position.y {
-                    let position = (start_position.x, y);
-                    buf[position].set_symbol(self.inner);
-                }
-            }
-        }
     }
 }

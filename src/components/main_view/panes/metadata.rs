@@ -8,7 +8,7 @@ use color_eyre::eyre::Result;
 use ratatui::prelude::*;
 use ratatui::widgets::Row;
 use rrr::crypto::encryption::EncryptionAlgorithm;
-use taffy::prelude::{length, max_content, percent, zero};
+use taffy::prelude::{max_content, percent};
 use taffy::{BoxSizing, Display};
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -16,7 +16,7 @@ use crate::action::{Action, ComponentMessage};
 use crate::animation::BlendAnimationDescriptor;
 use crate::color::{Blended, ColorU8Rgb};
 use crate::component::{Component, ComponentExt, ComponentId, DrawContext, Drawable};
-use crate::components::main_view::{MainState, MainView};
+use crate::components::main_view::MainState;
 use crate::components::scroll_pane::ScrollPane;
 use crate::components::styled_widget::{StyledWidget, TableProxy};
 use crate::layout::TaffyNodeData;

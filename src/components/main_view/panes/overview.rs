@@ -3,14 +3,12 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use color_eyre::eyre::Result;
-use ratatui::prelude::*;
 use taffy::BoxSizing;
-use taffy::prelude::length;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::action::{Action, ComponentMessage};
 use crate::component::{Component, ComponentId, DrawContext, Drawable};
-use crate::components::main_view::{MainState, MainView};
+use crate::components::main_view::MainState;
 use crate::layout::TaffyNodeData;
 
 #[derive(Debug)]
