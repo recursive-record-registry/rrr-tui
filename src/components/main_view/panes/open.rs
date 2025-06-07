@@ -68,11 +68,6 @@ impl PaneOpen {
                     width: length(1.0),
                     ..zero()
                 },
-                // This padding is for the pane's title.
-                padding: taffy::Rect {
-                    top: length(1.0),
-                    ..zero()
-                },
                 ..Default::default()
             }),
             action_tx: action_tx.clone(),
@@ -337,30 +332,22 @@ impl Component for PaneOpen {
     }
 }
 
-pub struct PaneOpenArgs {
-    pub title_offset_x: i16,
-}
-
 impl Drawable for PaneOpen {
     type Args<'a>
-        = PaneOpenArgs
+        = ()
     where
         Self: 'a;
 
-    fn draw<'a>(&self, context: &mut DrawContext, extra_args: Self::Args<'a>) -> Result<()>
+    fn draw<'a>(&self, context: &mut DrawContext, (): Self::Args<'a>) -> Result<()>
     where
         Self: 'a,
     {
-        let area = self.taffy_node_data.absolute_layout().padding_rect();
-        let (area_title, _) = MainView::pane_areas(area, extra_args.title_offset_x);
-
-        context.draw_widget(&Span::raw("Open Sub-Record [Enter]"), area_title);
-        context.draw_component_with(&self.record_name_label, ())?;
-        context.draw_component_with(&self.record_name_field, ())?;
-        context.draw_component_with(&self.status_spinner, ())?;
-        context.draw_component_with(&self.encoding_label, ())?;
-        context.draw_component_with(&self.encoding_radio_array, ())?;
-        context.draw_component_with(&self.button, ())?;
+        context.draw_component(&self.record_name_label)?;
+        context.draw_component(&self.record_name_field)?;
+        context.draw_component(&self.status_spinner)?;
+        context.draw_component(&self.encoding_label)?;
+        context.draw_component(&self.encoding_radio_array)?;
+        context.draw_component(&self.button)?;
 
         Ok(())
     }

@@ -386,29 +386,32 @@ impl BufferExt for Buffer {
 #[derive(Debug)]
 pub struct DrawContext<'a, 'b: 'a> {
     frame: &'a mut Frame<'b>,
-    /// The currently focused leaf component ID.
-    focused_id: ComponentId,
+    /// The path of component ID's to the currently focused leaf component.
+    focused_path: &'a ComponentIdPath,
     /// The instant at which the rendering of the corresponding frame started.
     now: Instant,
     /// Time elapsed since the app was launched until `now`.
     elapsed_time: Duration,
     /// The clipping area of the currently drawn component.
     view: Rectangle<u16>,
+    /// The depth of the current component.
+    current_depth: usize,
 }
 
 impl<'a, 'b: 'a> DrawContext<'a, 'b> {
     pub fn new(
         frame: &'a mut Frame<'b>,
-        focused_id: ComponentId,
+        focused_path: &'a ComponentIdPath,
         now: Instant,
         elapsed_time: Duration,
     ) -> Self {
         Self {
             view: frame.area().into(),
             frame,
-            focused_id,
+            focused_path,
             now,
             elapsed_time,
+            current_depth: 0,
         }
     }
 
@@ -417,7 +420,18 @@ impl<'a, 'b: 'a> DrawContext<'a, 'b> {
     // }
 
     pub fn focused_id(&self) -> ComponentId {
-        self.focused_id
+        *self.focused_path.0.last().unwrap()
+    }
+
+    pub fn focused_path(&self) -> &ComponentIdPath {
+        self.focused_path
+    }
+
+    pub fn is_child_focused(&self, id: ComponentId) -> bool {
+        self.current_depth
+            .checked_sub(1)
+            .and_then(|depth| self.focused_path.get(depth))
+            == Some(&id)
     }
 
     pub fn now(&self) -> Instant {
@@ -568,9 +582,10 @@ impl<'a, 'b: 'a> DrawContext<'a, 'b> {
             (f)(DrawContext {
                 frame: self.frame,
                 elapsed_time: self.elapsed_time,
-                focused_id: self.focused_id,
+                focused_path: self.focused_path,
                 now: self.now,
                 view: content_rect.clip(),
+                current_depth: self.current_depth + 1,
             })
         }
     }

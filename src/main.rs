@@ -29,6 +29,7 @@ mod layout;
 mod logging;
 mod rect;
 mod tui;
+mod widgets;
 
 #[tokio::main]
 async fn main() -> Result<()> {

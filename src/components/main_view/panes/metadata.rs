@@ -8,7 +8,7 @@ use color_eyre::eyre::Result;
 use ratatui::prelude::*;
 use ratatui::widgets::Row;
 use rrr::crypto::encryption::EncryptionAlgorithm;
-use taffy::prelude::{length, max_content, percent};
+use taffy::prelude::{length, max_content, percent, zero};
 use taffy::{BoxSizing, Display};
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -39,11 +39,6 @@ impl PaneMetadata {
             id,
             taffy_node_data: TaffyNodeData::new(taffy::Style {
                 box_sizing: BoxSizing::BorderBox,
-                // This padding is for the pane's title.
-                padding: taffy::Rect {
-                    top: length(1.0),
-                    ..taffy::Rect::zero()
-                },
                 ..Default::default()
             }),
             main_state: main_state.clone(),
@@ -177,10 +172,6 @@ impl Drawable for PaneMetadata {
     where
         Self: 'a,
     {
-        let area = self.taffy_node_data.absolute_layout().padding_rect();
-        let (area_title, _) = MainView::pane_areas(area, 0);
-
-        context.draw_widget(&Span::raw("Record [M]etadata"), area_title);
         context.draw_component(&self.content)?;
 
         Ok(())

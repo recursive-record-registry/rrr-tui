@@ -399,8 +399,7 @@ impl App {
             );
 
             let (now, elapsed_time) = self.get_elapsed_time();
-            let mut draw_context =
-                DrawContext::new(frame, self.get_focused_component_id(), now, elapsed_time);
+            let mut draw_context = DrawContext::new(frame, &self.focus_path, now, elapsed_time);
 
             result = draw_context.draw_component(&*self.root_component);
 
