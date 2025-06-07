@@ -31,11 +31,6 @@ impl PaneTree {
             id,
             taffy_node_data: TaffyNodeData::new(taffy::Style {
                 box_sizing: BoxSizing::BorderBox,
-                // This padding is for the pane's title.
-                padding: taffy::Rect {
-                    top: length(1.0),
-                    ..taffy::Rect::zero()
-                },
                 ..Default::default()
             }),
             // main_state: main_state.clone(),
@@ -80,11 +75,6 @@ impl Drawable for PaneTree {
     where
         Self: 'a,
     {
-        let area = self.taffy_node_data.absolute_layout().padding_rect();
-        let (area_title, _) = MainView::pane_areas(area, 0);
-
-        context.draw_widget(&Span::raw("[T]ree"), area_title);
-
         // TODO
         //context.draw_component_with(&self.content, ())?;
 

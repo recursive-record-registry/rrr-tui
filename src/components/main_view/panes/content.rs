@@ -13,7 +13,7 @@ use crate::action::{Action, ComponentMessage};
 use crate::animation::BlendAnimationDescriptor;
 use crate::color::{Blended, ColorU8Rgb};
 use crate::component::{Component, ComponentExt, ComponentId, DrawContext, Drawable};
-use crate::components::main_view::{MainState, MainView};
+use crate::components::main_view::MainState;
 use crate::components::scroll_pane::ScrollPane;
 use crate::components::text_block::TextBlock;
 use crate::layout::TaffyNodeData;
@@ -36,11 +36,6 @@ impl PaneContent {
             id,
             taffy_node_data: TaffyNodeData::new(taffy::Style {
                 box_sizing: BoxSizing::BorderBox,
-                // This padding is for the pane's title.
-                padding: taffy::Rect {
-                    top: length(1.0),
-                    ..taffy::Rect::zero()
-                },
                 ..Default::default()
             }),
             content: ScrollPane::new(
@@ -110,25 +105,17 @@ impl Component for PaneContent {
     }
 }
 
-pub struct PaneContentArgs {
-    pub title_offset_x: i16,
-}
-
 impl Drawable for PaneContent {
     type Args<'a>
-        = PaneContentArgs
+        = ()
     where
         Self: 'a;
 
-    fn draw<'a>(&self, context: &mut DrawContext, extra_args: Self::Args<'a>) -> Result<()>
+    fn draw<'a>(&self, context: &mut DrawContext, (): Self::Args<'a>) -> Result<()>
     where
         Self: 'a,
     {
-        let area = self.taffy_node_data.absolute_layout().padding_rect();
-        let (area_title, _) = MainView::pane_areas(area, extra_args.title_offset_x);
-
-        context.draw_widget(&Span::raw("Record [C]ontent"), area_title);
-        context.draw_component_with(&self.content, ())?;
+        context.draw_component(&self.content)?;
 
         Ok(())
     }
