@@ -7,7 +7,6 @@ use std::time::Duration;
 use color_eyre::eyre::Result;
 use ratatui::prelude::*;
 use ratatui::widgets::Row;
-use rrr::crypto::encryption::EncryptionAlgorithm;
 use taffy::prelude::{max_content, percent};
 use taffy::{BoxSizing, Display};
 use tokio::sync::mpsc::UnboundedSender;
@@ -83,57 +82,49 @@ impl Component for PaneMetadata {
                 hashed_record_key: _,
                 read_result: Some(opened_record),
             } => {
-                self.content.child.widget =
-                    TableProxy {
-                        rows: itertools::chain![
-                            opened_record.record.metadata.iter_with_semantic_keys().map(
-                                |(key, value)| crate::cbor::record_metadata_to_row(key, value)
-                            ),
-                            [
-                                Row::new(vec![
-                                    Cow::Borrowed("Collision Index"),
-                                    format!("{}", opened_record.collision_index.0).into(),
-                                ]),
-                                Row::new(vec![
-                                    Cow::Borrowed("Content Size"),
-                                    format!("{} bytes", opened_record.record.data.len()).into(),
-                                ]),
-                                Row::new(vec![
-                                    Cow::Borrowed("Segments"),
-                                    format!("{}", opened_record.segments.len()).into(),
-                                ]),
-                            ],
-                            opened_record.segments.iter().enumerate().flat_map(
-                                |(mut index, segment)| {
-                                    index += 1;
-                                    [
-                                        Row::new(vec![
-                                            format!("Segment #{} File", index),
-                                            format!("{}", segment.fragment_file_name),
-                                        ]),
-                                        Row::new(vec![
-                                            format!("Segment #{} Encryption", index),
-                                            format!(
-                                                "{}",
-                                                segment
-                                                    .fragment_encryption_algorithm
-                                                    .map(|encryption_algorithm| {
-                                                        match encryption_algorithm {
-                                                            EncryptionAlgorithm::Aes256Gcm => {
-                                                                "AES-256-GCM"
-                                                            }
-                                                        }
-                                                    })
-                                                    .unwrap_or("None")
-                                            ),
-                                        ]),
-                                    ]
-                                }
-                            ),
-                        ]
-                        .collect(),
-                        constraints: [Constraint::Length(16), Constraint::Fill(1)].into(),
-                    };
+                self.content.child.widget = TableProxy {
+                    rows: itertools::chain![
+                        opened_record
+                            .record
+                            .metadata
+                            .iter_with_semantic_keys()
+                            .map(|(key, value)| crate::cbor::record_metadata_to_row(key, value)),
+                        [
+                            Row::new(vec![
+                                Cow::Borrowed("Collision Index"),
+                                format!("{}", opened_record.collision_index.0).into(),
+                            ]),
+                            Row::new(vec![
+                                Cow::Borrowed("Content Size"),
+                                format!("{} bytes", opened_record.record.data.len()).into(),
+                            ]),
+                            Row::new(vec![
+                                Cow::Borrowed("Segments"),
+                                format!("{}", opened_record.segments.len()).into(),
+                            ]),
+                        ],
+                        opened_record.segments.iter().enumerate().flat_map(
+                            |(mut index, segment)| {
+                                index += 1;
+                                [
+                                    Row::new(vec![
+                                        format!("Segment #{} File", index),
+                                        format!("{}", segment.fragment_file_name),
+                                    ]),
+                                    Row::new(vec![
+                                        format!("Segment #{} Encryption", index),
+                                        segment.fragment_encryption_algorithm.map_or_else(
+                                            || "None".to_string(),
+                                            |encryption_algorithm| encryption_algorithm.to_string(),
+                                        ),
+                                    ]),
+                                ]
+                            }
+                        ),
+                    ]
+                    .collect(),
+                    constraints: [Constraint::Length(16), Constraint::Fill(1)].into(),
+                };
                 self.content.child.mark_cached_layout_dirty();
                 Ok(Some(Action::Render))
             }
