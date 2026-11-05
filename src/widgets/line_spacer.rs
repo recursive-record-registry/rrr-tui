@@ -1,7 +1,7 @@
 use ratatui::{
     buffer::Buffer,
     layout::{Direction, Position, Rect},
-    widgets::WidgetRef,
+    widgets::Widget,
 };
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
@@ -237,8 +237,8 @@ pub struct LineSpacer {
     pub line_type: LineType,
 }
 
-impl WidgetRef for LineSpacer {
-    fn render_ref(&self, area: Rect, buffer: &mut Buffer) {
+impl Widget for &LineSpacer {
+    fn render(self, area: Rect, buffer: &mut Buffer) {
         match self.direction {
             Direction::Horizontal => {
                 if area.height == 0 || area.width <= 1 {
@@ -299,8 +299,8 @@ pub struct RectSpacer {
     pub line_type: LineType,
 }
 
-impl WidgetRef for RectSpacer {
-    fn render_ref(&self, area: Rect, buffer: &mut Buffer) {
+impl Widget for &RectSpacer {
+    fn render(self, area: Rect, buffer: &mut Buffer) {
         let horizontal = LineSpacer {
             direction: Direction::Horizontal,
             line_type: self.line_type,
@@ -310,9 +310,9 @@ impl WidgetRef for RectSpacer {
             line_type: self.line_type,
         };
 
-        horizontal.render_ref(area, buffer);
-        vertical.render_ref(area, buffer);
-        horizontal.render_ref(
+        (&horizontal).render(area, buffer);
+        (&vertical).render(area, buffer);
+        (&horizontal).render(
             Rect {
                 x: area.x,
                 y: area.y + area.height - 1,
@@ -321,7 +321,7 @@ impl WidgetRef for RectSpacer {
             },
             buffer,
         );
-        vertical.render_ref(
+        (&vertical).render(
             Rect {
                 x: area.x + area.width - 1,
                 y: area.y,

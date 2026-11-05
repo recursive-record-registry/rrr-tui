@@ -79,7 +79,7 @@ mod opentelemetry {
 
     pub fn create_meter_layer<S>(
         tracing_guard: &mut TracingGuard,
-    ) -> Result<tracing_opentelemetry::MetricsLayer<S>>
+    ) -> Result<tracing_opentelemetry::MetricsLayer<S, SdkMeterProvider>>
     where
         S: Subscriber + for<'span> LookupSpan<'span>,
     {

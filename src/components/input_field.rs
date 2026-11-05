@@ -3,7 +3,7 @@ use std::ops::Range;
 use color_eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::{
-    style::{Color, Style, Stylize},
+    style::{Color, Style},
     text::{Line, Span},
 };
 use tokio::sync::mpsc::UnboundedSender;

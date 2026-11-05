@@ -3,8 +3,9 @@ use std::{fmt::Debug, ops::ControlFlow};
 use nalgebra::{SVector, point, vector};
 use ratatui::layout::Rect;
 use taffy::{
-    CacheTree, LayoutBlockContainer, LayoutFlexboxContainer, LayoutGridContainer,
-    LayoutPartialTree, PrintTree, RoundTree, TraversePartialTree, TraverseTree,
+    CacheTree, CoreStyle, LayoutBlockContainer, LayoutContainingBlock, LayoutFlexboxContainer,
+    LayoutGridContainer, LayoutPartialTree, PrintTree, RoundTree, TraversePartialTree,
+    TraverseTree,
 };
 
 use crate::{
@@ -124,6 +125,8 @@ pub struct TaffyNodeData {
     unrounded_layout: taffy::Layout,
     rounded_layout: taffy::Layout,
     cache: taffy::Cache,
+    /// Out-of-flow descendants, for which this node is the containing block.
+    hoisted_children: Vec<taffy::NodeId>,
     detailed_grid_info: Option<taffy::DetailedGridInfo>,
     absolute_layout: Option<AbsoluteLayout>,
     relative_layout_cache_dirty: bool,
@@ -225,44 +228,35 @@ impl PrintTree for Box<dyn DefaultDrawableComponent> {
         node.get_debug_label()
     }
 
-    fn get_final_layout(&self, node_id: taffy::NodeId) -> &taffy::Layout {
+    fn get_final_layout(&self, node_id: taffy::NodeId) -> taffy::Layout {
         let (node, _) = component::find_component_by_id(self.as_ref(), node_id.into()).unwrap();
-        &node.get_taffy_node_data().rounded_layout
+        node.get_taffy_node_data().rounded_layout
     }
 }
 
 impl CacheTree for Box<dyn DefaultDrawableComponent> {
     fn cache_get(
-        &self,
+        &mut self,
         node_id: taffy::NodeId,
-        known_dimensions: taffy::Size<Option<f32>>,
-        available_space: taffy::Size<taffy::AvailableSpace>,
-        run_mode: taffy::RunMode,
+        inputs: &taffy::LayoutInput,
     ) -> Option<taffy::LayoutOutput> {
-        let (node, _) = component::find_component_by_id(self.as_ref(), node_id.into())?;
-        node.get_taffy_node_data()
-            .cache
-            .get(known_dimensions, available_space, run_mode)
+        let (node, _) = component::find_component_by_id_mut(self.as_mut(), node_id.into())?;
+        node.get_taffy_node_data_mut().cache.get(inputs)
     }
 
     fn cache_store(
         &mut self,
         node_id: taffy::NodeId,
-        known_dimensions: taffy::Size<Option<f32>>,
-        available_space: taffy::Size<taffy::AvailableSpace>,
-        run_mode: taffy::RunMode,
+        inputs: &taffy::LayoutInput,
         layout_output: taffy::LayoutOutput,
     ) {
         let Some((node, _)) = component::find_component_by_id_mut(self.as_mut(), node_id.into())
         else {
             return;
         };
-        node.get_taffy_node_data_mut().cache.store(
-            known_dimensions,
-            available_space,
-            run_mode,
-            layout_output,
-        );
+        node.get_taffy_node_data_mut()
+            .cache
+            .store(inputs, layout_output);
     }
 
     fn cache_clear(&mut self, node_id: taffy::NodeId) {
@@ -275,18 +269,35 @@ impl CacheTree for Box<dyn DefaultDrawableComponent> {
 }
 
 impl RoundTree for Box<dyn DefaultDrawableComponent> {
-    fn get_unrounded_layout(&self, node_id: taffy::NodeId) -> &taffy::Layout {
+    fn get_unrounded_layout(&self, node_id: taffy::NodeId) -> taffy::Layout {
         let (node, _) = component::find_component_by_id(self.as_ref(), node_id.into()).unwrap();
-        &node.get_taffy_node_data().unrounded_layout
+        node.get_taffy_node_data().unrounded_layout
     }
 
     fn set_final_layout(&mut self, node_id: taffy::NodeId, layout: &taffy::Layout) {
         let (node, _) = component::find_component_by_id_mut(self.as_mut(), node_id.into()).unwrap();
         node.get_taffy_node_data_mut().rounded_layout = *layout;
     }
+
+    fn is_out_of_flow(&self, node_id: taffy::NodeId) -> bool {
+        let (node, _) = component::find_component_by_id(self.as_ref(), node_id.into()).unwrap();
+        node.get_taffy_node_data().style.position.is_out_of_flow()
+    }
+
+    fn hoisted_child_count(&self, node_id: taffy::NodeId) -> usize {
+        let (node, _) = component::find_component_by_id(self.as_ref(), node_id.into()).unwrap();
+        node.get_taffy_node_data().hoisted_children.len()
+    }
+
+    fn get_hoisted_child_id(&self, node_id: taffy::NodeId, index: usize) -> taffy::NodeId {
+        let (node, _) = component::find_component_by_id(self.as_ref(), node_id.into()).unwrap();
+        node.get_taffy_node_data().hoisted_children[index]
+    }
 }
 
 impl LayoutPartialTree for Box<dyn DefaultDrawableComponent> {
+    type CustomIdent = <taffy::Style as CoreStyle>::CustomIdent;
+
     type CoreContainerStyle<'a>
         = &'a taffy::Style
     where
@@ -310,6 +321,12 @@ impl LayoutPartialTree for Box<dyn DefaultDrawableComponent> {
         // If RunMode is PerformHiddenLayout then this indicates that an ancestor node is `Display::None`
         // and thus that we should lay out this node using hidden layout regardless of it's own display style.
         if inputs.run_mode == taffy::RunMode::PerformHiddenLayout {
+            // `round_layout` reaches out-of-flow nodes only through the hoisted children of their
+            // containing block, and a node inside a hidden subtree is in no such list. Reset the
+            // final layout here, so that it does not keep the layout from an earlier visible pass.
+            let (node, _) =
+                component::find_component_by_id_mut(self.as_mut(), node_id.into()).unwrap();
+            node.get_taffy_node_data_mut().rounded_layout = taffy::Layout::with_order(0);
             return taffy::compute_hidden_layout(self, node_id);
         }
 
@@ -325,9 +342,11 @@ impl LayoutPartialTree for Box<dyn DefaultDrawableComponent> {
             let display_mode = node.get_taffy_node_data().style.display;
 
             // Dispatch to a layout algorithm based on the node's display style and whether the node has children or not.
-            match (display_mode, has_children) {
+            let mut output = match (display_mode, has_children) {
                 (taffy::Display::None, _) => taffy::compute_hidden_layout(tree, node_id),
-                (taffy::Display::Block, true) => taffy::compute_block_layout(tree, node_id, inputs),
+                (taffy::Display::Block | taffy::Display::FlowRoot, true) => {
+                    taffy::compute_block_layout(tree, node_id, inputs, None)
+                }
                 (taffy::Display::Flex, true) => {
                     taffy::compute_flexbox_layout(tree, node_id, inputs)
                 }
@@ -341,8 +360,39 @@ impl LayoutPartialTree for Box<dyn DefaultDrawableComponent> {
                     // TODO: implement calc() in high-level API
                     taffy::compute_leaf_layout(inputs, style, |_, _| 0.0, measure_function)
                 }
+            };
+
+            // Lay out the out-of-flow descendants, for which this node is the containing block.
+            // Only full layout passes do this, so that measure passes do not write their layouts.
+            if inputs.run_mode == taffy::RunMode::PerformLayout {
+                taffy::compute_oof_layout(tree, node_id, &mut output);
             }
+
+            output
         })
+    }
+}
+
+impl LayoutContainingBlock for Box<dyn DefaultDrawableComponent> {
+    type OofItemStyle<'a>
+        = &'a taffy::Style
+    where
+        Self: 'a;
+
+    fn get_oof_item_style(&self, node_id: taffy::NodeId) -> Self::OofItemStyle<'_> {
+        self.get_core_container_style(node_id)
+    }
+
+    fn clear_hoisted_children(&mut self, node_id: taffy::NodeId) {
+        let (node, _) = component::find_component_by_id_mut(self.as_mut(), node_id.into()).unwrap();
+        node.get_taffy_node_data_mut().hoisted_children.clear();
+    }
+
+    fn add_hoisted_children(&mut self, node_id: taffy::NodeId, hoisted: &[taffy::NodeId]) {
+        let (node, _) = component::find_component_by_id_mut(self.as_mut(), node_id.into()).unwrap();
+        node.get_taffy_node_data_mut()
+            .hoisted_children
+            .extend_from_slice(hoisted);
     }
 }
 
@@ -520,9 +570,12 @@ pub fn compute_absolute_layout(
             let scroll_position = component.scroll_position();
             let taffy_node_data = component.get_taffy_node_data_mut();
             let layout = &taffy_node_data.rounded_layout;
-            let overflow_size = layout
-                .content_size
-                .into_nalgebra()
+            // The extent of the content, measured from the scroll origin.
+            let overflow_size = taffy::Size {
+                width: layout.scrollable_overflow_rect.right,
+                height: layout.scrollable_overflow_rect.bottom,
+            }
+            .into_nalgebra()
                 .try_cast::<u16>()
                 .unwrap_or_default();
             let content_rect = layout

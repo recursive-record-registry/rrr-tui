@@ -4,7 +4,7 @@ use color_eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
 use nalgebra::{SVector, vector};
 use ratatui::{
-    style::{Style, Stylize},
+    style::Style,
     text::{Line, Span},
 };
 use tokio::sync::mpsc::UnboundedSender;

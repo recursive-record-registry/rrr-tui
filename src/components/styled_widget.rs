@@ -5,7 +5,7 @@ use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Rect},
     text::{Line, Span, Text},
-    widgets::{Row, Table, WidgetRef},
+    widgets::{Row, Table, Widget},
 };
 use taffy::AvailableSpace;
 use tokio::sync::mpsc::UnboundedSender;
@@ -16,7 +16,9 @@ use crate::{
     layout::TaffyNodeData,
 };
 
-pub trait MeasurableWidget: WidgetRef + Debug {
+/// A widget that can be measured for layouting.
+/// To be drawn, `&Self` must also implement [`Widget`].
+pub trait MeasurableWidget: Debug {
     fn measure(
         &self,
         known_dimensions: taffy::Size<Option<f32>>,
@@ -75,6 +77,7 @@ where
 impl<T> Drawable for StyledWidget<T>
 where
     T: MeasurableWidget,
+    for<'w> &'w T: Widget,
 {
     type Args<'a>
         = ()
@@ -140,10 +143,9 @@ pub struct TableProxy<'a> {
     pub constraints: Vec<Constraint>,
 }
 
-impl WidgetRef for TableProxy<'_> {
-    fn render_ref(&self, area: Rect, buf: &mut Buffer) {
-        Table::new(self.rows.iter().cloned(), self.constraints.iter().cloned())
-            .render_ref(area, buf);
+impl Widget for &TableProxy<'_> {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        Table::new(self.rows.iter().cloned(), self.constraints.iter().cloned()).render(area, buf);
     }
 }
 

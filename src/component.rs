@@ -12,7 +12,7 @@ use ratatui::{
     buffer::{Buffer, Cell},
     layout::{Position, Rect, Size},
     style::Style,
-    widgets::{StatefulWidgetRef, WidgetRef},
+    widgets::{StatefulWidgetRef, Widget},
 };
 use static_assertions::assert_obj_safe;
 use tracing::instrument;
@@ -542,13 +542,12 @@ impl<'a, 'b: 'a> DrawContext<'a, 'b> {
         );
     }
 
-    pub fn draw_widget<W: WidgetRef + Debug>(
-        &mut self,
-        widget: &W,
-        area: impl Into<Rectangle<i16>>,
-    ) {
+    pub fn draw_widget<W: Debug + ?Sized>(&mut self, widget: &W, area: impl Into<Rectangle<i16>>)
+    where
+        for<'w> &'w W: Widget,
+    {
         self.draw_widget_inner(area, |clipped_area, buffer| {
-            widget.render_ref(clipped_area, buffer)
+            widget.render(clipped_area, buffer)
         });
     }
 
