@@ -91,8 +91,8 @@ impl Component for PaneMetadata {
                             ),
                             [
                                 Row::new(vec![
-                                    Cow::Borrowed("Record Nonce"),
-                                    format!("{}", opened_record.record_nonce.0).into(),
+                                    Cow::Borrowed("Collision Index"),
+                                    format!("{}", opened_record.collision_index.0).into(),
                                 ]),
                                 Row::new(vec![
                                     Cow::Borrowed("Content Size"),
