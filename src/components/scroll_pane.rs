@@ -248,10 +248,15 @@ where
                 + ((rail_len_eights - bar_len_eights) * self.scroll_position.y as u32)
                     .div_ceil(scroll_size.y as u32) as i32;
             let bar_end_eights = bar_start_eights + bar_len_eights as i32;
-            let bar_start_floor = bar_start_eights.div_floor(8) as i16;
-            let bar_start_ceil = bar_start_eights.div_ceil(8) as i16;
-            let bar_end_floor = bar_end_eights.div_floor(8) as i16;
-            let bar_end_ceil = bar_end_eights.div_ceil(8) as i16;
+            // `div_euclid` rounds towards negative infinity for a positive divisor.
+            // Could use `div_floor` and `div_ceil` from the nightly `int_roundings` feature, once
+            // stabilized. Tracking issue: https://github.com/rust-lang/rust/issues/88581
+            let div_floor_8 = |eights: i32| eights.div_euclid(8) as i16;
+            let div_ceil_8 = |eights: i32| (eights + 7).div_euclid(8) as i16;
+            let bar_start_floor = div_floor_8(bar_start_eights);
+            let bar_start_ceil = div_ceil_8(bar_start_eights);
+            let bar_end_floor = div_floor_8(bar_end_eights);
+            let bar_end_ceil = div_ceil_8(bar_end_eights);
 
             // Lay out the top cell of the bar.
             let bar_start_cap = (bar_start_eights % 8 != 0).then(|| ScrollBarLayoutCap {

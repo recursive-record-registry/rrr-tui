@@ -64,7 +64,7 @@ pub fn cbor_value_to_line(value: &cbor::Value) -> Line<'static> {
         return line(
             "array",
             Line::from_iter(
-                Iterator::intersperse_with(
+                Itertools::intersperse_with(
                     array.iter().map(|value| {
                         let mut spans = cbor_value_to_line(value).spans;
                         spans.insert(0, styled("{"));
@@ -82,7 +82,7 @@ pub fn cbor_value_to_line(value: &cbor::Value) -> Line<'static> {
         return line(
             "map",
             Line::from_iter(
-                Iterator::intersperse_with(
+                Itertools::intersperse_with(
                     map.iter().map(|(key, value)| {
                         let mut spans = cbor_value_to_line(key).spans;
                         spans.insert(0, styled("{"));

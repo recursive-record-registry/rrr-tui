@@ -79,7 +79,7 @@ macro_rules! trace_dbg {
         };
 }
 
-pub async fn report(action_tx: &UnboundedSender<Action>, f: impl async FnOnce() -> Result<()>) {
+pub async fn report(action_tx: &UnboundedSender<Action>, f: impl AsyncFnOnce() -> Result<()>) {
     if let Err(error) = (f)().await {
         let message = error.to_string();
 

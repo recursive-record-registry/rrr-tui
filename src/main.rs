@@ -1,10 +1,3 @@
-#![feature(let_chains)]
-#![feature(iter_intersperse)]
-#![feature(async_trait_bounds)]
-#![feature(const_type_name)]
-#![feature(try_trait_v2)]
-#![feature(int_roundings)]
-
 use std::sync::Arc;
 
 use args::Args;
