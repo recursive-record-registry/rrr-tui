@@ -6,7 +6,10 @@ use std::time::{Duration, Instant};
 use color_eyre::eyre::{Result, eyre};
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::prelude::*;
-use rrr::record::{HashedRecordKey, RecordKey, RecordName, RecordReadVersionSuccess};
+use rrr::record::{
+    HashedRecordKey, ListRecordVersionsOptions, LoadRecordOptions, RecordKey, RecordName,
+    RecordReadVersionSuccess,
+};
 use rrr::registry::Registry;
 use rrr::utils::fd_lock::ReadLock;
 use rrr::utils::serde::BytesOrAscii;
@@ -193,13 +196,17 @@ impl PaneOpen {
     ) -> Result<(HashedRecordKey, Option<RecordReadVersionSuccess>)> {
         let hashed_record_key = record_key.hash(&registry.config.hash).await?;
         let versions = registry
-            .list_record_versions(&hashed_record_key, 4, 4)
+            .list_record_versions(&hashed_record_key, ListRecordVersionsOptions::default())
             .await?;
         let Some(latest_version) = versions.last() else {
             return Ok((hashed_record_key, None));
         };
         let record = registry
-            .load_record(&hashed_record_key, latest_version.record_version, 4)
+            .load_record(
+                &hashed_record_key,
+                latest_version.record_version,
+                LoadRecordOptions::default(),
+            )
             .await?
             .ok_or_else(|| eyre!("Failed to load the latest root record version."))?;
         Ok((hashed_record_key, Some(record)))

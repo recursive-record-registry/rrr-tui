@@ -58,7 +58,7 @@ num-traits = "0.2.19"
 polonius-the-crab = "0.6.0"
 pretty_assertions = "1.4.1"
 ratatui = { version = "0.30.2", features = ["serde", "macros", "unstable-widget-ref"] }
-rrr = { git = "https://github.com/recursive-record-registry/rrr.git", rev = "068966bdaf12f5881f74e037af7b97650e50fa45" }
+rrr = { git = "https://github.com/recursive-record-registry/rrr.git", rev = "8c847bf0763d947acd7f8026024d358c5b8b9415" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 signal-hook = "0.4.6"
